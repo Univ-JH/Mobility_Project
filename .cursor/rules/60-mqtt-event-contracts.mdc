@@ -1,0 +1,27 @@
+---
+description: MQTT 토픽/페이로드 계약 규칙(호환성, 버전, 필수 필드)
+alwaysApply: true
+---
+
+# MQTT Event Contracts (항상 적용)
+
+## 토픽 규칙
+- 토픽은 최소한 다음을 만족한다:
+  - 텔레메트리: `device/{deviceId}/telemetry`
+  - 이벤트: `device/{deviceId}/event`
+  - 제어: `device/{deviceId}/control`
+
+## 페이로드 공통 필드(필수)
+- `deviceId`: string
+- `timestamp`: ISO8601 또는 epoch(ms) 중 하나로 통일
+- `schemaVersion`: 정수(호환성 관리)
+
+## 호환성 규칙
+- 필드 추가는 backward-compatible 하게(기존 필드 변경/삭제 금지).
+- `schemaVersion` 변경 시 서버는 구버전도 일정 기간 수용한다.
+
+## 안전 관련 이벤트
+- 자동 제어가 발생하는 이벤트에는 반드시 다음을 포함한다:
+  - `reason`, `severity`, `confidence`
+  - (가능하면) 입력 컨텍스트 요약: `helmetWorn`, `bleRssi`, `sidewalkProb`
+
