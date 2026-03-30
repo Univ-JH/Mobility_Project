@@ -9,19 +9,68 @@ alwaysApply: true
 - 토픽은 최소한 다음을 만족한다:
   - 텔레메트리: `device/{deviceId}/telemetry`
   - 이벤트: `device/{deviceId}/event`
-  - 제어: `device/{deviceId}/control`
+  - 상태: `device/{deviceId}/status`
+  - 제어(서버->장치): `device/{deviceId}/control`
+  - 제어 ACK(장치->서버): `device/{deviceId}/ack`
 
-## 페이로드 공통 필드(필수)
+## 공통 페이로드 필수 필드(강제)
+- `schemaVersion`: number (현재는 `1`)
 - `deviceId`: string
-- `timestamp`: ISO8601 또는 epoch(ms) 중 하나로 통일
-- `schemaVersion`: 정수(호환성 관리)
+- `timestamp`: ISO8601 또는 epoch(ms) 중 하나로 통일(선택 1개만 사용)
+- `seq`: number (멱등성/재전송 구분용, device 단위 단조 증가 권장)
+- `rideId`: string (가능하면 텔레메트리에도 포함. 이벤트에는 필수)
+
+## timestamp 정책
+- 서버는 수신 payload의 `timestamp`를 그대로 저장(`eventAt`).
+- 서버 수신 시각은 별도로 `ingestedAt`에 기록한다.
 
 ## 호환성 규칙
 - 필드 추가는 backward-compatible 하게(기존 필드 변경/삭제 금지).
 - `schemaVersion` 변경 시 서버는 구버전도 일정 기간 수용한다.
 
+## 스키마 v1: Telemetry (요약 전송)
+- 필드(권장 포함):
+  - `helmet`: `{ worn: boolean, pressureAvg?: number }`
+  - `motion`: `{ accelX, accelY, tiltRoll?, tiltPitch? }`
+  - `vision`: `{ surfaceClass: 'sidewalk'|'road'|'unknown', sidewalkProb?: number }`
+  - `health`: `{ bleConnected: boolean, batteryPct?: number }`
+- 원칙: 센서가 없는 장치는 해당 섹션을 생략하되, 섹션이 생략되면 서버/클라이언트에서 `undefined` 처리 정책을 가져야 한다.
+
 ## 안전 관련 이벤트
 - 자동 제어가 발생하는 이벤트에는 반드시 다음을 포함한다:
   - `reason`, `severity`, `confidence`
   - (가능하면) 입력 컨텍스트 요약: `helmetWorn`, `bleRssi`, `sidewalkProb`
+
+## 스키마 v1: Event (중요 이벤트)
+- 필수:
+  - `eventType`: string (예: `auto_brake_triggered`)
+  - `severity`: 'low'|'medium'|'high'
+  - `confidence`: number (0~1 권장)
+  - `reason`: string (정책/상황 근거)
+  - `context`: 선택(그러나 안전 이벤트에는 권장)
+
+## 스키마 v1: Control (서버 -> 장치)
+- 필수:
+  - `commandId`: string (ACK로 매칭)
+  - `action`: string (예: `set_limit_mode`)
+  - `params`: object (장치별로 문서화된 파라미터)
+  - `reason`: string
+  - `ttlMs`: number (유효시간)
+
+## 스키마 v1: ACK (장치 -> 서버)
+- 필수:
+  - `commandId`: string
+  - `timestamp`: string/number(서버와 동일 포맷)
+  - `result`: 'success'|'partial'|'failure'
+  - `reason`: string (실패/부분성공 시)
+  - `seq`: number (가능하면 포함. 없으면 server에서 격리/재요청)
+
+## 멱등/중복 처리 규칙(서버)
+- 중복 이벤트는 저장하지 않는다(별도 `dup` 로깅만 남김).
+- 제어 ACK는 `commandId`로 매칭 후 1회만 상태를 확정한다.
+
+## 지원 불가 schemaVersion
+- 파서는 안전하게 실패한다:
+  - 저장하지 않고 `unsupported_schema`로 격리
+  - 운영 로그에 남기되 비밀정보는 마스킹한다.
 

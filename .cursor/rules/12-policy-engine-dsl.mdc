@@ -1,0 +1,42 @@
+---
+description: 정책 DSL 평가(결정적 구현) 규칙
+globs: **/*.py
+alwaysApply: false
+---
+
+# Policy Engine DSL (Python) - 결정적 평가 규칙
+
+## 입력/검증
+- 정책 DSL 입력은 반드시 “스키마 검증”을 통과해야만 평가한다(예외 없이 실패 케이스를 명시).
+- `priority`, `when`, `then`, `safetyLock`의 의미는 문서와 1:1로 매핑한다.
+- 지원하지 않는 필드/enum 값이 있으면 평가 실패로 처리하고 `reason`에 원인 문자열을 남긴다.
+
+## 결정성(Determinism)
+- 평가 결과는 동일 입력(정책 버전 + 상태 + 컨텍스트)에서 항상 동일해야 한다.
+- 난수/현재시간/외부 I/O에 의존하지 않는다.
+- 동순위 충돌 타이브레이커는 고정 규칙을 따른다:
+  - 더 낮은 `targetSpeedKph` 우선
+  - 그래도 동일하면 더 높은 `brakeLevel` 우선
+  - 그래도 동일하면 `policyId` 사전순(lexicographical) 우선
+
+## 응급/강제 우선순위
+- 응급 관련 룰은 일반 룰보다 항상 우선 적용한다.
+- 응급이 중복으로 매칭되면, 그중 가장 높은 severity(문서 enum 기준) 우선으로 선택한다.
+
+## 출력 계약(Decision Object)
+- 평가 결과는 반드시 다음 필드를 포함한다:
+  - `mode` (예: `RUNNING_LIMITED` 등)
+  - `targetSpeedKph`
+  - `brakeLevel`(필요 시)
+  - `reason`(문자열, 정책/컨텍스트 근거)
+  - `confidence`(가능하면 0~1)
+  - `appliedPolicyId`, `appliedPolicyVersion`
+
+## 상태 전이와의 연결
+- 정책 엔진은 “전이 자체”를 직접 변경하지 않고, 제안 결과(예: 모드/속도/제동)를 반환한다.
+- 백엔드는 반환 결과를 상태 전이 규칙과 함께 최종 승인한다.
+
+## 테스트 규칙(필수)
+- 동순위 충돌 케이스 3개(속도 동률/브레이크 동률/완전 동일) 각각에 대해 결과가 결정적으로 고정되는지 테스트한다.
+- `schemaVersion` 미지원/손상된 policy JSON은 실패로 처리되는지 테스트한다.
+

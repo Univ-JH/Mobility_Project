@@ -10,6 +10,30 @@ alwaysApply: true
 - **상태 기계(State Machine)**: 제어는 임의 if-else 난립이 아니라 명시적 상태(`IDLE/READY/RUNNING/...`)와 전이 조건으로 관리한다.
 - **모든 제어 명령은 이유를 남긴다**: `reason`, `severity`, `confidence` 등 메타데이터를 함께 기록한다.
 
+## 상태 전이/이벤트 저장 규칙
+- 상태 전이 관련 코드는 반드시 단일 모듈(예: `state_machine.py`)에서 처리한다.
+- 전이 유효성 검증 로직은 문서화된 “허용/금지 전이”를 기반으로 한다.
+- 금지 전이/비정상 전이는 저장하되 `anomaly=true`로 라벨링하고 경보를 발생시킨다.
+
+## 이벤트 계약(Contract) 규칙
+- MQTT payload와 API DTO는 “문서의 v1 스키마”를 기준으로 한다.
+- `schemaVersion`이 다른 경우에도:
+  - 서버는 하위 호환을 우선 지원
+  - 지원 불가 버전은 명확히 거부/격리하고(`unsupported_schema` 계열), 로그를 남긴다.
+
+## 관측성(Observability) 규칙
+- 구조화 로그 필수 키:
+  - `traceId`, `correlationId`, `deviceId`, `rideId`
+- 이벤트/전이/제어 관련 로그에는:
+  - `eventType`, `severity`, `confidence`, `stateFrom`, `stateTo`, `commandId`
+  - 위 필드가 없으면 로그/저장을 “누락”으로 취급한다.
+
+## 성능 예산(백엔드 관점)
+- 이벤트 처리 경로(ingestion -> normalize -> persist)는 지연 P95 목표를 염두에 둔다:
+  - event 저장 지연 P95 < `300ms`
+  - 제어 ACK 왕복 지연 P95 < `800ms`
+- 성능 저하가 예상되면 “즉시 저장” 대신 비동기 저장/버킷 저장 전략을 우선 적용한다.
+
 ## 코드 품질 규칙
 - **작게 쪼개기**: 한 함수는 한 책임. I/O(통신/DB/하드웨어)와 순수 로직을 분리한다.
 - **명명**: 도메인 용어를 코드에 그대로 반영한다(예: `helmet_worn`, `sidewalk_probability`, `brake_level`).

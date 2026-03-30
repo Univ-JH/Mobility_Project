@@ -10,14 +10,72 @@ alwaysApply: false
 - 라우터(API), 서비스(도메인 로직), 리포지토리(DB), 통신(MQTT/외부)은 분리한다.
 - 비즈니스 규칙은 **순수 함수/클래스**로 만들고, FastAPI 의존성은 가장 바깥층에 둔다.
 
+## 디렉터리/레이어 규칙(권장)
+- `api/`: FastAPI 라우터 + 요청/응답 DTO 조립만 담당
+- `services/`: 정책 계산, 상태 전이 처리, 응급 케이스 라이프사이클
+- `repositories/`: MongoDB CRUD/쿼리/인덱스 관련 로직만 담당
+- `workers/`: MQTT ingestion/정규화/배치 저장
+- `domain/`: 이벤트/상태/정책 DSL의 타입과 순수 로직
+- `schemas/`: API 응답/요청 Pydantic 모델(문서 계약과 1:1 대응)
+
 ## API 규칙
 - 요청/응답은 Pydantic 모델로 엄격히 정의한다(옵셔널 남발 금지).
 - HTTP는 조회/설정/관리용, **실시간 이벤트는 MQTT**를 우선 고려한다.
+- 모든 API 응답은 공통 포맷을 따른다:
+  - `success`: boolean
+  - `code`: string (성공이면 `OK`, 실패면 에러코드)
+  - `message`: 사용자 메시지(간단/비기술)
+  - `data`: payload(성공 시)
+  - `traceId`: string
 - 에러는 일관된 포맷(에러 코드/메시지/추적ID)으로 반환한다.
+- 에러코드는 문서의 카탈로그를 사용한다(임의 신설 금지):
+  - `AUTH_INVALID_CREDENTIALS`, `AUTH_TOKEN_EXPIRED`, `AUTH_FORBIDDEN`
+  - `REQ_VALIDATION_FAILED`, `REQ_UNSUPPORTED_SCHEMA_VERSION`
+  - `STATE_TRANSITION_INVALID`, `POLICY_CONFLICT`
+  - `RESOURCE_NOT_FOUND`, `RESOURCE_DUPLICATED`
+  - `INTERNAL_ERROR`, `DEPENDENCY_UNAVAILABLE`
 
 ## DB(MongoDB) 규칙
 - 시간 기반 데이터는 `deviceId + timestamp` 인덱스를 전제로 설계한다.
 - 원시 텔레메트리는 저장량을 고려해 **요약/버킷** 저장을 기본으로 한다.
+
+## 데이터 저장 규칙(운영 계약 준수)
+- `events` 저장에는 반드시 다음을 포함한다:
+  - `deviceId`, `rideId`, `eventType`, `severity`, `confidence`
+  - `stateFrom`, `stateTo`(상태 변화가 있다면)
+  - `payload`, `eventAt(장치 시각)`, `ingestedAt(서버 수신 시각)`
+- 제어 명령 로그는 ACK 관점으로 관리한다:
+  - `commandId`, `issuedAt`, `ackAt`, `result`, `timeoutMs`, `retryCount`
+- `devices`는 “현재 상태 + 마지막 접속 + 현재 정책 버전”을 항상 갱신한다.
+
+## MQTT ingestion 규칙
+- ingestion 워커는 메시지 정규화 후 저장한다(저장 전에 검증).
+- 멱등성 규칙:
+  - 중복 수신은 `deviceId + rideId + seq`(또는 동일 ride에서 seq) 기준으로 제거한다.
+- 순서 역전:
+  - 순서가 역전되어도 저장 가능하도록 `eventAt` 기반으로 정렬/인덱싱 전략을 유지한다.
+- 처리 경로는 “정규화 + 저장”을 분리하고, 저장 실패는 재시도/버퍼링 전략을 사용한다.
+
+## 정책 엔진 규칙(DSL 구현)
+- 정책은 JSON 기반 룰이며, 평가 결과는 결정적(deterministic)이어야 한다.
+- 평가 순서:
+  - 응급 규칙 우선(최상위)
+  - 그 다음 강제 안전 규칙
+  - 그 다음 장치/사용자/상황 정책
+- 충돌 해결:
+  - 우선순위(priority) 높은 정책이 우선
+  - 동순위 충돌 시 “더 안전한 결과”(속도 더 낮음, 제동 더 강함)를 선택
+- 모드/타겟 변경은 반드시 `reason`, `confidence`, `severity`를 함께 산출한다.
+
+## 상태 전이 규칙(백엔드 검증)
+- 전이 수신 시 아래를 검증한다:
+  - `from/to`가 문서의 허용/금지 매트릭스에 부합하는지
+  - 해당 전이를 발생시킨 근거 이벤트가 존재하는지(또는 context에 포함되는지)
+- 금지 전이는 저장은 하되 `anomaly=true`로 라벨링하고 경보 로그를 남긴다.
+
+## 신뢰성/성능(백엔드 목표)
+- ingestion-to-persist 경로에서 동기 DB 호출 남발 금지(필요 시 비동기 배치/버킷).
+- 이벤트 저장량이 증가하면 원시 텔레메트리 전량 저장을 즉시 중단하고 요약 저장으로 전환한다.
 
 ## 신뢰성
 - 외부(I/O) 실패 시 재시도는 백오프를 적용하고, 무한 재시도 금지.
