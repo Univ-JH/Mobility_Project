@@ -1,0 +1,24 @@
+{
+    "SYSTEM_INFO": {
+        "ID": "DEU-SAFETY",
+        "VERSION": "1.0.0"
+    },
+    "HW_PINS": {
+        "SERVO": 12,
+        "TRIG": 23,
+        "ECHO": 24,
+        "BT_PORT": "/dev/ttyS0"
+    },
+    "BRAKE_TABLE": {
+        "RELEASE": 0.0,
+        "WARN": 0.25,
+        "LIMIT": 0.55,
+        "BRAKE": 0.8,
+        "EMERGENCY": 1.0
+    },
+    "THRESHOLD": {
+        "CRITICAL_DIST_M": 1.0,
+        "HELMET_PRESSURE_MIN": 450,
+        "CMD_TTL_MS": 500
+    }
+}

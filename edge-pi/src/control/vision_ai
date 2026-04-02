@@ -1,0 +1,38 @@
+# 도구 불러오기
+from ultralytics import YOLO  # 인공지능 사물 인식 도구
+import cv2  # 카메라 영상 처리 도구
+
+# 인공지능 시각 설계도
+class VisionAI:
+    
+    # 초기 설정
+    def __init__(self):
+        # 학습된 인공지능 모델 파일 읽기
+        self.model = YOLO('best.pt') 
+        
+        # 판단 결과 이름표 설정 (0번: 도로, 1번: 인도)
+        self.class_names = ['ROAD', 'SIDEWALK']
+        
+        # 준비 완료 출력
+        print("[시각] 인공지능 준비 완료")
+
+    # 도로 종류 판별 동작
+    def predict_road_type(self, frame):
+        # 카메라 화면 분석 요청 (실시간 모드 사용)
+        results = self.model(frame, stream=True, verbose=False)
+        
+        # 분석 결과 확인
+        for r in results:
+            # 화면에서 인식된 상자 목록 가져오기
+            boxes = r.boxes
+            
+            # 인식된 것이 있을 때 실행
+            if len(boxes) > 0:
+                # 가장 확실하게 인식된 번호 가져오기
+                class_id = int(boxes.cls[0])
+                
+                # 번호를 이름(도로/인도)으로 바꿔서 전달
+                return self.class_names[class_id]
+        
+        # 아무것도 못 찾으면 기본값으로 도로 전달
+        return "ROAD"
