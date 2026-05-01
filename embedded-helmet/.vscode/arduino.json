@@ -1,0 +1,6 @@
+{
+    "board": "arduino:mbed_nano:nano33ble",
+    "sketch": "helmet.ino",
+    "configuration": "cpu=nrf52840",
+    "output": "../build"
+}
