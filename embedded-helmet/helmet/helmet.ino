@@ -13,6 +13,7 @@ const long CONFIRM_MS = 2000;  // 착용 확정 대기 시간 (2초)
 // 2. 사고 감지 (IMU 센서) 관련
 const float CRASH_THR = 4.0;   // 충돌 사고 감지 중력 가속도 값
 const float FALL_THR = 0.8;    // 전도(쓰러짐) 감지 기울기 값
+const float SUDDEN_THR = 1.5;  // 급가속/급정거 감지 임계값
 
 // 3. BLE 서비스 관련
 const char* SVC_UUID = "19B10000-E8F2-537E-4F6C-D104768A1214";
@@ -29,7 +30,7 @@ bool isWearing = false;        // 현재 착용 상태 여부
 void setup() {
   Serial.begin(9600);
 
-  pinMode(BUZZER_PIN, OUTPUT); // 부저 출력 설정 추가
+  pinMode(BUZZER_PIN, OUTPUT); // 부저 출력 설정
 
   // IMU와 BLE 초기화 (둘 중 하나라도 실패 시 중단)
   if (!IMU.begin() || !BLE.begin()) {
@@ -99,6 +100,16 @@ void loop() {
     Serial.println("이벤트: 충돌 발생!");
     tone(BUZZER_PIN, 2000, 500); // 부저 울림
   } 
+  else if (ax > SUDDEN_THR) {
+    eventChar.writeValue(3); // 3: 급가속
+    Serial.println("이벤트: 급가속 발생!");
+    tone(BUZZER_PIN, 1500, 200); 
+  }
+  else if (ax < -SUDDEN_THR) {
+    eventChar.writeValue(4); // 4: 급정거
+    Serial.println("이벤트: 급정거 발생!");
+    tone(BUZZER_PIN, 1500, 200);
+  }
   //얼마나 옆으로 기울어졌나 확인
   else if (abs(ax) > FALL_THR && isWearing) {
     eventChar.writeValue(1); // 1: 전도(Fall)

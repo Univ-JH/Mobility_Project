@@ -42,7 +42,7 @@ BLEByteCharacteristic statusChar(ST_UUID, BLERead | BLENotify);
 BLECharacteristic eventChar(EV_UUID, BLERead | BLENotify, sizeof(SafetyEventPayload));
 
 /* ===========================================================
-   [BLE Layer: 연결 관리 및 가시성] - 신규 추가 영역
+   [BLE Layer: 연결 관리 및 가시성]
    =========================================================== */
 void onBLEConnected(BLEDevice central) {
   // 가시성: 연결 로그 남김

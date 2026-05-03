@@ -1,9 +1,7 @@
 #include <ArduinoBLE.h>
 #include <Arduino_LSM9DS1.h>
 
-/* ===========================================================
-   [가시성/명확성] 필터 및 임계치 상수 정의 (최상단 분리)
-   =========================================================== */
+
 // 1. 하드웨어 핀 설정
 const int FSR_L_PIN = A0;
 const int FSR_R_PIN = A1;
@@ -19,7 +17,7 @@ const float CRASH_THR = 4.0;    // 충돌 감지 가속도 특징값 (G)
 const float FALL_THR = 0.8;     // 전도 감지 기울기 특징값 (G)
 
 /* ===========================================================
-   [호환성] BLE Payload와 1:1 대응하는 출력 지표 (라벨)
+   BLE Payload와 1:1 대응하는 출력 지표 (라벨)
    =========================================================== */
 enum DeviceStatus { UNWORN = 0, WORN = 1 };
 enum AccidentEvent { NONE = 0, FALL = 1, CRASH = 2 };
@@ -73,7 +71,7 @@ void updateSensorFeatures() {
   // IMU 데이터 취득 및 특징량(Impact) 계산
   if (IMU.accelerationAvailable()) {
     IMU.readAcceleration(currentFeature.ax, currentFeature.ay, currentFeature.az);
-    // 충격량 특징 추출: $$impact = \sqrt{ax^2 + ay^2 + az^2}$$
+    // 충격량 특징 추출: impact = \sqrt{ax^2 + ay^2 + az^2}
     currentFeature.impact = sqrt(pow(currentFeature.ax, 2) + pow(currentFeature.ay, 2) + pow(currentFeature.az, 2));
   }
 }
