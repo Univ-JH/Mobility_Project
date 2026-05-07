@@ -2,7 +2,7 @@ import asyncio
 from bleak import BleakClient, BleakScanner
 
 # 아두이노 코드에 적힌 것과 똑같아야함
-CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+CHARACTERISTIC_UUID = "19B10001-E8F2-537E-4F6C-D104768A1214"
 
 # 아두이노의 MAC 주소를 입력하세요 (모르면 빈칸)
 HELMET_MAC_ADDRESS = "" # 예: "A0:B1:C2:D3:E4:F5"
