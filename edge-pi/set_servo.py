@@ -23,6 +23,7 @@ def set_angle(angle):
 
     try:
         # 1. 각도를 펄스 폭(500~2500us)으로 변환
+        lgpio.gpio_claim_output(h, SERVO_PIN)
         pulse_width = 500 + (angle / 180.0) * 2000
         
         # 2. 펄스 폭을 Duty Cycle(%)로 변환
