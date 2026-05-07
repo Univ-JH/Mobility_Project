@@ -1,36 +1,41 @@
 #include <ArduinoBLE.h>
 
-// 고유 ID (이건 건드리지 마세요)
-BLEService customService("19B10000-E8F2-537E-4F6C-D104768A1214");
-BLEIntCharacteristic customChar("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify);
+// BLE 서비스 및 특성 UUID 설정 (임의 생성 가능)
+BLEService helmetService("19B10000-E8F2-537E-4F6C-D104768A1214");
+// 0: UNWORN, 1: WORN, 2: EMERGENCY
+BLEByteCharacteristic statusCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify);
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
-
   if (!BLE.begin()) {
     Serial.println("BLE 시작 실패!");
     while (1);
   }
 
-  // ★ 중요: 여기서 나온 주소를 메모장에 적어두세요! ★
-  String address = BLE.address();
-  Serial.println("===============================");
-  Serial.print("아두이노 맥 주소: "); 
-  Serial.println(address); 
-  Serial.println("===============================");
-
-  BLE.setLocalName("MyArduino");
-  BLE.setAdvertisedService(customService);
-  customService.addCharacteristic(customChar);
-  BLE.addService(customService);
-  customChar.writeValue(0);
+  BLE.setLocalName("SmartHelmet_Alpha"); // 라즈베리파이가 찾을 장치 이름 [cite: 166]
+  BLE.setAdvertisedService(helmetService);
+  helmetService.addCharacteristic(statusCharacteristic);
+  BLE.addService(helmetService);
+  
+  statusCharacteristic.writeValue(0); // 초기 상태: 미착용
   BLE.advertise();
+  Serial.println("BLE 광고 중...");
 }
 
 void loop() {
-  static int val = 0;
-  customChar.writeValue(val++); // 0, 1, 2... 계속 보냄
-  Serial.print("Data Sent: "); Serial.println(val);
-  delay(1000);
+  BLEDevice central = BLE.central();
+  if (central) {
+    while (central.connected()) {
+      // 센서 로직에 따라 값 업데이트 [cite: 99, 103]
+      // 예: 압력 센서 감지 시 1(WORN), 사고 감지 시 2(EMERGENCY)
+      int currentStatus = checkHelmetStatus(); 
+      statusCharacteristic.writeValue(currentStatus);
+      delay(200); // 200ms 주기로 데이터 전송 
+    }
+  }
+}
+
+int checkHelmetStatus() {
+  // 실제 센서 읽기 로직이 들어갈 자리 [cite: 108, 110]
+  return 1; // 테스트용 '착용' 신호
 }
