@@ -1,7 +1,7 @@
 import time
 import lgpio
 
-from .control_config import (
+from control.control_config import (
     SERVO_PIN, PWM_FREQ, 
     SERVO_MIN_PULSE, SERVO_MAX_PULSE, 
     BRAKE_HOLD_TIME
