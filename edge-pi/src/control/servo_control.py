@@ -1,88 +1,67 @@
-# sudo pigpiod
 import time
-import json
-import pigpio
-from typing import Dict, Any
+import lgpio
 
-from .control_config import (
-    SERVO_PIN, SERVO_MIN_PULSE, SERVO_MAX_PULSE, BRAKE_LEVELS
+from control.control_config import (
+    SERVO_PIN, PWM_FREQ, 
+    SERVO_MIN_PULSE, SERVO_MAX_PULSE, 
+    BRAKE_HOLD_TIME
 )
 
 class BrakeController:
-    def __init__(self, ride_id: str = "SYSTEM_TEST"):
-        """서보 모터 초기화 및 기본 상태(해제) 설정"""
-        self.ride_id = ride_id
+    def __init__(self):
+        """컨트롤러 초기화: 라즈베리 파이 5의 GPIO 칩을 열고 핀을 준비합니다."""
+        try:
+            self.h = lgpio.gpiochip_open(4)
+        except lgpio.error:
+            try:
+                self.h = lgpio.gpiochip_open(0)
+            except Exception as e:
+                print(f"⚠️ 브레이크 시스템 초기화 실패: {e}")
+                raise e
         
-        # [RULE: Fail-Safe] pigpio 데몬 연결 확인
-        self.pi = pigpio.pi()
-        if not self.pi.connected:
-            self._log_action("SYSTEM_FAULT", "Failed to connect to pigpio daemon. (Run 'sudo pigpiod')", "HIGH")
-            raise RuntimeError("pigpio 데몬에 연결할 수 없습니다. 터미널에서 'sudo pigpiod'를 실행하세요.")
-
-        # 초기 상태: 브레이크 해제
-        self.current_level = "level_0"
-        self._set_angle(BRAKE_LEVELS[self.current_level])
-        print(f"[SERVO_INIT] 브레이크 컨트롤러 초기화 완료 (현재: {self.current_level})")
-
-    def _set_angle(self, angle: int):
-        """내부 유틸: 각도(0~180)를 펄스폭으로 변환하여 모터에 명령 전달"""
-        # 안전을 위해 각도 제한
-        angle = max(0, min(180, angle))
+        lgpio.gpio_claim_output(self.h, SERVO_PIN)
         
-        # 0~180도를 500~2500us 펄스폭으로 매핑
-        pulse_width = SERVO_MIN_PULSE + (angle / 180.0) * (SERVO_MAX_PULSE - SERVO_MIN_PULSE)
+        # 시스템 켜질 때 브레이크 해제 상태로 시작
+        self.release_brake()
+        print("🕹️ 브레이크 컨트롤러 모듈 준비 완료")
+
+    def _calculate_duty(self, angle):
+        """내부 사용 함수: 각도를 받아 안전한 듀티 사이클(%)로 변환합니다."""
+        if angle < 0: angle = 0
+        if angle > 180: angle = 180
         
-        # 하드웨어 PWM 신호 전송
-        self.pi.set_servo_pulsewidth(SERVO_PIN, int(pulse_width))
+        pw = SERVO_MIN_PULSE + (angle / 180.0) * (SERVO_MAX_PULSE - SERVO_MIN_PULSE)
+        return (pw / 20000.0) * 100.0
 
-    def _log_action(self, event_type: str, reason: str, severity: str, confidence: float = 1.0):
-        """[RULE: 관측성] 제어 로그 기록"""
-        log_payload = {
-            "eventType": event_type,
-            "rideId": self.ride_id,
-            "severity": severity,
-            "reason": reason,
-            "confidence": confidence
-        }
-        print(f"[JSON_LOG] {json.dumps(log_payload)}")
+    def set_angle(self, angle):
+        """지정된 각도로 브레이크를 조절하고, 이동 후 신호를 차단하여 모터를 보호합니다."""
+        try:
+            duty = self._calculate_duty(angle)
+            lgpio.tx_pwm(self.h, SERVO_PIN, PWM_FREQ, duty)
+            
+            # 테스트에서 확인한 핵심: 이동 시간 보장 후 신호 차단
+            time.sleep(BRAKE_HOLD_TIME)
+            lgpio.tx_pwm(self.h, SERVO_PIN, PWM_FREQ, 0)
+            print(f"   [Brake] {angle}도 조절 완료 (대기 모드)")
+        except Exception as e:
+            print(f"⚠️ 브레이크 제어 에러: {e}")
 
-    def execute_brake(self, level: str, reason: str, confidence: float = 1.0):
-        """
-        [외부 인터페이스] 요청된 제동 레벨로 브레이크를 작동시킵니다.
-        
-        Args:
-            level (str): "level_0", "level_1", "level_2", "level_emergency"
-            reason (str): 브레이크를 잡는 이유 (예: "장애물 감지", "헬멧 전도")
-            confidence (float): 판단의 신뢰도 (0.0 ~ 1.0)
-        """
-        if level not in BRAKE_LEVELS:
-            self._log_action("INVALID_COMMAND", f"Unsupported brake level: {level}", "WARNING")
-            return
+    def pull_brake(self):
+        """브레이크를 완전히 잠급니다 (사고/미착용 시 호출)"""
+        print("🚨 브레이크 작동!")
+        self.set_angle(180)
 
-        # 중복 명령 무시 (이미 같은 레벨이면 모터를 다시 건드리지 않음)
-        if level == self.current_level:
-            return
-
-        target_angle = BRAKE_LEVELS[level]
-        self._set_angle(target_angle)
-        self.current_level = level
-
-        # 심각도 결정 (레벨에 따라)
-        severity = "HIGH" if "emergency" in level else "INFO"
-        
-        # [RULE: 이유 있는 제어] 기록
-        action_msg = f"Brake set to {level} ({target_angle} deg) due to: {reason}"
-        self._log_action("BRAKE_ENGAGED", action_msg, severity, confidence)
-
-    def release_brake(self, reason: str = "Safe condition restored"):
-        """브레이크를 완전히 해제합니다."""
-        self.execute_brake("level_0", reason)
+    def release_brake(self):
+        """브레이크를 완전히 풉니다 (정상 주행 시 호출)"""
+        print("🟢 브레이크 해제")
+        self.set_angle(0)
 
     def cleanup(self):
-        """프로그램 종료 시 서보 모터 전원 차단 (펄스폭 0 = 정지)"""
-        if self.pi.connected:
-            self.release_brake("System shutdown")
-            time.sleep(0.5) # 해제 각도로 돌아갈 시간 확보
-            self.pi.set_servo_pulsewidth(SERVO_PIN, 0)
-            self.pi.stop()
-            print("[SERVO_CLEANUP] 서보 모터 제어 종료.")
+        """프로그램 종료 시 메모리와 핀을 안전하게 반환합니다."""
+        try:
+            lgpio.tx_pwm(self.h, SERVO_PIN, PWM_FREQ, 0)
+            lgpio.gpio_free(self.h, SERVO_PIN)
+            lgpio.gpiochip_close(self.h)
+            print("🧹 브레이크 컨트롤러 종료 및 리소스 반환 완료")
+        except:
+            pass
