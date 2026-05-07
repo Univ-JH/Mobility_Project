@@ -1,17 +1,73 @@
-# Frontend Web (React Dashboard)
+# React + TypeScript + Vite
 
-운영자 및 플랫폼 시스템 관리자를 위해 데이터, 기기들의 생사(온라인) 상태 점검, 징벌적 정책 설정 등을 종합적으로 체크할수 있게 만들어진 중앙 관제 대시보드 프로젝트입니다.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## 활용 기술
-- **프레임워크**: React (버전 18+, TypeScript) + Vite (빌더)
-- **상태 관리**: React Query (데이터 패치), Zustand (클라이언트 테마 및 로컬 조작 상태 관리)
-- **디자인/UI**: Shadcn UI (TailwindCSS 기반) 및 시각화용 Chart 라이브러리 연동
-- **비동기 통신**: Axios API 통신, Event 수신용 WebSocket/SSE 
+Currently, two official plugins are available:
 
-## 대시보드 구성요소
-- **관제 메인 룸**: 전국 각지의 연결망(장치 현황), 현재 주행/대기/FAULT 상태 종합 통계판
-- **응급 모니터링**: MQTT로부터 올라온 고위험/사고 이벤트가 유입될 시 즉각 알람과 리졸브(조치 버튼) 연결 대시 
-- **정책 및 캘리브레이션 뷰어**: 인도 주행 속도 제한, 야간 추가 제한 정책 등의 변수 정책(DSL) 관리 기능 탑재
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-## 역할
-수많은 사용자 데이터가 집합하는 콘솔 화면입니다. 서버를 통한 디바이스 개별 상태 조회, 원격 제한 발령, 시스템 이상 징후 파악 등을 수행하여 이동장치 모빌리티 사업의 중앙 컨트롤타워로 기능합니다.
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
