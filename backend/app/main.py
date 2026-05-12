@@ -8,7 +8,7 @@ from app.core.config import settings
 
 from beanie import init_beanie
 from app.api.router import api_router
-from app.repositories.models import Device, Event
+from app.repositories.models import Device, Event, User
 from app.workers.mqtt_client import start_mqtt_worker
 
 @asynccontextmanager
@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     client = AsyncIOMotorClient(settings.MONGODB_URL)
     await init_beanie(
         database=client[settings.DATABASE_NAME],
-        document_models=[Device, Event]
+        document_models=[Device, Event, User]
     )
     
     # 2. MQTT Worker Startup

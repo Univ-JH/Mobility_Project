@@ -15,3 +15,12 @@ class DeviceStatusResponse(BaseModel):
     helmetWorn: bool = False
     bleConnected: bool = False
     currentPolicyVersion: int = 1
+
+class DevicePairRequest(BaseModel):
+    deviceId: str = Field(..., example="dev-001")
+    fwVersion: Optional[str] = None
+    deviceType: Optional[str] = None
+
+class DeviceUnlockRequest(BaseModel):
+    lat: Optional[float] = None
+    lng: Optional[float] = None

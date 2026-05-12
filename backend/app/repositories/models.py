@@ -5,11 +5,24 @@ from beanie import Document, Indexed
 from pydantic import Field
 
 from app.domain.states import DeviceState
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class Location(BaseModel):
     lat: float
     lng: float
+
+class User(Document):
+    userId: Indexed(str, unique=True)
+    email: str
+    name: str
+    safetyScore: float = 100.0
+    appSettings: Dict[str, Any] = {}
+    
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "users"
 
 class Device(Document):
     deviceId: Indexed(str, unique=True)
