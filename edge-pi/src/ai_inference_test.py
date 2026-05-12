@@ -124,14 +124,20 @@ class AIInferenceTest:
             
             # 4. 결과 시각화
             current_time = time.time()
-            fps_text = f"FPS: {1.0 / (current_time - last_frame_time):.1f}"
+            time_diff = current_time - last_frame_time
+            fps_text = f"FPS: {1.0 / time_diff:.1f}" if time_diff > 0 else "FPS: N/A"
             last_frame_time = current_time
             
             self._draw_overlay(frame, prediction, final_status, fps_text)
-            cv2.imshow("Hailo-8 & Cam 3 Edge Inference Test", frame)
             
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # Headless 환경(모니터 없음)이거나 X11 매핑 오류 시 크래시 방지
+            try:
+                cv2.imshow("Hailo-8 & Cam 3 Edge Inference Test", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            except Exception as e:
+                # GUI 출력이 불가능한 환경이므로 터미널에 텍스트로만 출력
+                print(f"[Headless Mode] {fps_text} | Status: {final_status} | Raw: {'Sidewalk' if prediction == 1 else 'Road'}")
 
     def _preprocess(self, frame):
         # BGR -> RGB 변환

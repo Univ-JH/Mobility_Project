@@ -21,7 +21,15 @@ services:
       - "./src:/app/src"                 
       # 하드웨어 캘리브레이션 및 설정 값 주입
       - "./config:/app/config"           
+      # 추론 모델 파일 마운트 (누락 시 컨테이너 내에서 hef를 읽을 수 없음)
+      - "./models:/app/models"
       # 카메라 프레임 공유 메모리 최적화를 위해 shm 매핑
       - "/dev/shm:/dev/shm"              
+      # [추가] libcamera가 프레임 버퍼를 할당하기 위해 사용하는 dma_heap 마운트
+      - "/dev/dma_heap:/dev/dma_heap"
+      # [추가] Docker 내부에서 cv2.imshow(GUI 화면 출력)를 사용하기 위한 X11 소켓 매핑
+      - "/tmp/.X11-unix:/tmp/.X11-unix"
     environment:
       - TZ=Asia/Seoul
+      # 호스트의 디스플레이 환경변수를 컨테이너로 전달 (GUI 출력용)
+      - DISPLAY=${DISPLAY:-:0}

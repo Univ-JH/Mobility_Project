@@ -40,5 +40,5 @@ COPY . .
 # HailoRT 설치의 경우, 로컬에 저장된 .whl 파일을 통해 설치해야 함.
 # 예: RUN pip install hailort-4.X.X-cp310-cp310-linux_aarch64.whl
 
-# 기본 실행 스크립트 지정 (추후 main.py 작성 시 동작)
-CMD ["python", "src/main.py"]
+# 기본 실행 스크립트 지정 (우선 테스트 코드를 실행하도록 변경)
+CMD ["python", "src/ai_inference_test.py"]
