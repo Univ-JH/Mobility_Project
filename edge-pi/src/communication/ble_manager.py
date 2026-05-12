@@ -1,109 +1,84 @@
-# pip install bleak
 import asyncio
-import time
-import json
-from typing import Callable, Optional
 from bleak import BleakClient, BleakScanner
-
-from .comm_config import (
-    HELMET_MAC_ADDR, BLE_CHAR_DATA_UUID, 
-    BLE_RECONNECT_INTERVAL, BLE_SCAN_TIMEOUT
-)
+from .comm_config import TARGET_DEVICE_NAME, RX_CHARACTERISTIC_UUID
 
 class HelmetBLEManager:
-    def __init__(self, ride_id: str):
-        self.ride_id = ride_id
-        self.mac_addr = HELMET_MAC_ADDR
-        self.client: Optional[BleakClient] = None
+    def __init__(self):
+        self.device_name = TARGET_DEVICE_NAME
+        self.char_uuid = RX_CHARACTERISTIC_UUID
+        self.is_connected = False
+        self.on_data_received = None 
         
-        # [RULE: 멱등성] 순서 역전 및 중복 데이터 방지
-        self.last_seq = -1 
-        
-        # 외부 콜백
-        self.on_data_callback: Optional[Callable] = None
-        self.on_disconnect_callback: Optional[Callable] = None
+        # 비정상 끊김을 즉각 감지하기 위한 이벤트 객체
+        self._disconnect_event = asyncio.Event() 
 
-    def set_callbacks(self, on_data: Callable, on_disconnect: Callable):
-        self.on_data_callback = on_data
-        self.on_disconnect_callback = on_disconnect
+    def _disconnect_callback(self, client):
+        """블루투스 기기와 연결이 끊어지면 즉시 호출되는 시스템 콜백"""
+        print("\n❌ [BLE] 헬멧과의 연결이 끊어졌습니다! (재연결 대기)")
+        self.is_connected = False
+        self._disconnect_event.set() # 끊김 이벤트 발생!
 
-    def _disconnected_handler(self, client):
-        """[RULE: Fail-Safe] 연결 끊김 시 보수적 상태 전이 알림"""
-        print(f"[JSON_LOG] {{\"eventType\": \"BLE_DISCONNECTED\", \"rideId\": \"{self.ride_id}\", \"severity\": \"HIGH\", \"reason\": \"Helmet Disconnected\"}}")
-        if self.on_disconnect_callback:
-            self.on_disconnect_callback()
-
-    async def _notification_handler(self, sender: int, data: bytearray):
-        """아두이노의 문자열 데이터를 수신하고 해석 (기존 방식 최적화)"""
+    def _parse_data(self, raw_text):
+        """외계어 데이터를 안전하게 딕셔너리로 파싱 (방어 로직 강화)"""
+        parsed_data = {"is_worn": True, "is_accident": False, "speed": 0.0}
         try:
-            # 1. Byte를 문자열로 디코딩 (예: "Q:145,T:1714,W:1,A:0,S:0")
-            raw_line = data.decode('utf-8').strip()
-            
-            # 2. 딕셔너리로 분리 및 매핑
-            parsed_data = dict(item.split(":") for item in raw_line.split(","))
-            
-            # 3. Seq 검증 (중복/과거 데이터 버리기)
-            current_seq = int(parsed_data.get('Q', -1))
-            if current_seq <= self.last_seq and current_seq != 0:
-                return  # 무시
-            self.last_seq = current_seq
-
-            # 4. 상태값 정수 변환 및 직관적인 키로 래핑
-            status = {
-                "seq": current_seq,
-                "timestamp": int(parsed_data.get('T', time.time())),
-                "is_worn": parsed_data.get('W') == '1',      # 1: 착용, 0: 미착용
-                "is_accident": parsed_data.get('A') == '1',  # 1: 사고/전도, 0: 정상
-                "speed_state": int(parsed_data.get('S', 0))  # 0: 정상, 1: 급감속, 2: 급가속
-            }
-
-            # 5. [RULE: 응급/강제 규칙] 치명적 상태 감지 시 즉각 로깅
-            if not status["is_worn"]:
-                self._log_warning("HELMET_REMOVED", "Helmet not worn")
-            if status["is_accident"]:
-                self._log_warning("FALL_DETECTED", "Accident or fall detected")
-            if status["speed_state"] in [1, 2]:
-                self._log_warning("DANGEROUS_ACCEL", f"Speed state: {status['speed_state']}")
-
-            # 6. 메인 로직(Policy Engine)으로 데이터 전달
-            if self.on_data_callback:
-                self.on_data_callback(status)
-
+            parts = raw_text.split(',')
+            for part in parts:
+                if ':' not in part: continue
+                key, value = part.split(':')
+                
+                if key == 'W':
+                    parsed_data["is_worn"] = (value == '1')
+                elif key == 'A':
+                    parsed_data["is_accident"] = (value == '1')
+                elif key == 'S':
+                    # 값이 이상하게 와도(예: "20.5a") 프로그램이 죽지 않도록 방어
+                    parsed_data["speed"] = float(value.replace(filter(lambda x: not x.isdigit() and x != '.', value), ''))
         except Exception as e:
-            # 파싱 실패 시 로그만 남기고 시스템은 멈추지 않음
-            self._log_warning("BLE_PARSE_ERROR", f"Raw: {raw_line}, Error: {str(e)}")
+            pass # 데이터가 꼬여서 와도 무시하고 기본값 반환
+            
+        return parsed_data
 
-    def _log_warning(self, event_type: str, reason: str):
-        """구조화 로그 전송 유틸리티"""
-        log = {"eventType": event_type, "rideId": self.ride_id, "severity": "HIGH", "reason": reason}
-        print(f"[JSON_LOG] {json.dumps(log)}")
+    async def _notification_handler(self, sender, data):
+        """데이터 수신 시 브레이크를 작동시켜도 통신이 끊기지 않도록 분리"""
+        try:
+            raw_text = data.decode('utf-8').strip()
+            clean_data = self._parse_data(raw_text)
+            
+            if self.on_data_received:
+                # [해결책 1] 메인 로직(브레이크 작동 등)을 별도의 쓰레드(Background)로 던짐!
+                # 이렇게 하면 브레이크가 1초 동안 time.sleep()을 해도 블루투스는 계속 돌아갑니다.
+                asyncio.to_thread(self.on_data_received, clean_data)
+                
+        except Exception as e:
+            print(f"⚠️ [BLE] 데이터 처리 에러: {e}")
 
-    async def connect_and_listen(self):
-        """연결 유지 및 재연결 루프"""
+    async def start_listening(self):
+        """무한 재연결을 보장하는 메인 루프"""
+        print(f"🔍 블루투스 스캔 시작... (목표 기기: {self.device_name})")
+        
         while True:
             try:
-                print(f"[BLE_INFO] {self.mac_addr} 스캔 중...")
-                device = await BleakScanner.find_device_by_address(self.mac_addr, timeout=BLE_SCAN_TIMEOUT)
-
-                if not device:
-                    await asyncio.sleep(BLE_RECONNECT_INTERVAL)
+                self._disconnect_event.clear() # 이벤트 초기화
+                
+                # 1. 기기 찾기
+                device = await BleakScanner.find_device_by_name(self.device_name, timeout=5.0)
+                if device is None:
+                    print(f"⏳ {self.device_name} 찾는 중...")
                     continue
 
-                self.client = BleakClient(device, disconnected_callback=self._disconnected_handler)
-                await self.client.connect()
-                
-                if self.client.is_connected:
-                    print("[BLE_INFO] 헬멧 연결 성공! 데이터 수신 시작.")
-                    await self.client.start_notify(BLE_CHAR_DATA_UUID, self._notification_handler)
-
-                    while self.client.is_connected:
-                        await asyncio.sleep(1)
-
+                # 2. 기기 연결 시도 (끊김 감지 콜백 등록)
+                print(f"🔗 {self.device_name} 발견! 연결 시도 중...")
+                async with BleakClient(device, disconnected_callback=self._disconnect_callback) as client:
+                    self.is_connected = True
+                    print("✅ 헬멧과 연결 완료! 데이터 수신 중...")
+                    
+                    # 3. 데이터 수신 알림 켜기
+                    await client.start_notify(self.char_uuid, self._notification_handler)
+                    
+                    # [해결책 2] 끊김 이벤트가 발생할 때까지 무한 대기 (CPU 점유율 최소화)
+                    await self._disconnect_event.wait()
+                    
             except Exception as e:
-                self._log_warning("BLE_ERROR", str(e))
-            
-            finally:
-                if self.client and self.client.is_connected:
-                    await self.client.stop_notify(BLE_CHAR_DATA_UUID)
-                    await self.client.disconnect()
-                await asyncio.sleep(BLE_RECONNECT_INTERVAL)
+                print(f"⚠️ [BLE] 스캔/연결 중 에러 발생: {e}")
+                await asyncio.sleep(2) # 에러 시 2초 쉬고 다시 시도

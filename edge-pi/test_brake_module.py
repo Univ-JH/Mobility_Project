@@ -1,5 +1,5 @@
 import time
-# 우리가 만든 제어 클래스를 불러옵니다.
+
 from src.control.servo_control import BrakeController
 
 def run_test():
