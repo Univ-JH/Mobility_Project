@@ -5,6 +5,11 @@ from beanie import Document, Indexed
 from pydantic import Field
 
 from app.domain.states import DeviceState
+from pydantic import BaseModel
+
+class Location(BaseModel):
+    lat: float
+    lng: float
 
 class Device(Document):
     deviceId: Indexed(str, unique=True)
@@ -17,6 +22,7 @@ class Device(Document):
     helmetWorn: bool = False
     bleConnected: bool = False
     currentPolicyVersion: int = 1
+    lastLocation: Optional[Location] = None
     
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
