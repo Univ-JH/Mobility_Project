@@ -1,0 +1,8 @@
+opencv-python-headless>=4.8.0
+paho-mqtt>=1.6.0
+bleak>=0.21.0
+numpy>=1.24.0
+
+# 주의: Hailo-8 구동을 위한 PyHailoRT 라이브러리는 pip 저장소에 존재하지 않으므로
+# Hailo 웹사이트(Developer Zone)에서 제공하는 .whl 파일을 다운로드 받아
+# Dockerfile 내에서 설치하도록 구성해야 합니다.

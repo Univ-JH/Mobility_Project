@@ -1,0 +1,18 @@
+{
+  "servo": {
+    "pin": 18,
+    "angle_warn": 45,
+    "angle_limit": 90,
+    "angle_brake": 135,
+    "angle_emergency": 180
+  },
+  "camera": {
+    "width": 640,
+    "height": 480,
+    "fps": 30
+  },
+  "ai": {
+    "window_size_frames": 15,
+    "threshold": 0.7
+  }
+}
