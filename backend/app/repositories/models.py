@@ -62,7 +62,7 @@ class Event(Document):
 
     class Settings:
         name = "events"
-        # Compound index for idempotency
+        # Compound index for idempotency (unique constraint)
         indexes = [
-            [("deviceId", pymongo.ASCENDING), ("rideId", pymongo.ASCENDING), ("seq", pymongo.ASCENDING)]
+            pymongo.IndexModel([("deviceId", pymongo.ASCENDING), ("rideId", pymongo.ASCENDING), ("seq", pymongo.ASCENDING)], unique=True)
         ]

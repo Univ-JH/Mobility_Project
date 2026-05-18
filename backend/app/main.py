@@ -11,6 +11,8 @@ from app.api.router import api_router
 from app.repositories.models import Device, Event, User
 from app.workers.mqtt_client import start_mqtt_worker
 
+from app.core.database import init_db
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -18,11 +20,7 @@ async def lifespan(app: FastAPI):
     Executes startup and shutdown logics.
     """
     # 1. MongoDB Connection Setup (Beanie)
-    client = AsyncIOMotorClient(settings.MONGODB_URL)
-    await init_beanie(
-        database=client[settings.DATABASE_NAME],
-        document_models=[Device, Event, User]
-    )
+    client = await init_db()
     
     # 2. MQTT Worker Startup
     mqtt_task = asyncio.create_task(start_mqtt_worker())
