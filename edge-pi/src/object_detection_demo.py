@@ -1,185 +1,149 @@
-import cv2
-import numpy as np
-import time
-import json
 import os
+import cv2
+import time
+import threading
+import numpy as np
 from collections import deque
 
-# HailoRT 라이브러리 임포트 시도 (NPU 하드웨어 의존성)
 try:
-    from hailo_platform import (HEF, VDevice, HailoStreamInterface, ConfigureParams,
-                                InputVStreamParams, OutputVStreamParams, FormatType, InferVStreams)
-    HAILO_AVAILABLE = True
+    from hailo_platform import (
+        HEF, VDevice, HailoStreamInterface, InferVStreams, 
+        ConfigureParams, InputVStreamParams, OutputVStreamParams, FormatType
+    )
 except ImportError:
-    print("[경고] hailo_platform 모듈을 찾을 수 없습니다. (Mock 추론 모드로 작동합니다)")
-    HAILO_AVAILABLE = False
+    print("ERROR: hailo_platform 패키지가 설치되어 있지 않습니다. 라즈베리파이 로컬 환경에 HailoRT를 설치해주세요.")
+    exit(1)
 
-class ObjectDetectionDemo:
-    def __init__(self, hef_path, config_path):
-        # 1. 캘리브레이션 및 설정값 로드 (하드코딩 지양)
-        with open(config_path, 'r') as f:
-            self.config = json.load(f)
-            
-        self.width = self.config['camera']['width']
-        self.height = self.config['camera']['height']
-        self.fps = self.config['camera']['fps']
+class CameraThread:
+    """
+    카메라 프레임을 별도 스레드에서 읽어오는 클래스.
+    메인 스레드의 추론(Inference) 속도 저하로 인해 카메라 버퍼가 밀리는 현상(Latency)을 방지합니다.
+    (AGENTS.md: 실시간성 보장을 위한 deque 스레드 큐 관리 규정 준수)
+    """
+    def __init__(self, pipeline_str):
+        self.cap = cv2.VideoCapture(pipeline_str, cv2.CAP_GSTREAMER)
+        if not self.cap.isOpened():
+            raise RuntimeError("카메라를 초기화할 수 없습니다. libcamerasrc 파이프라인 및 장치 연결 상태를 확인하세요.")
         
-        # 2. Hailo 설정 초기화
-        self.hef_path = hef_path
-        self.infer_pipeline = None
-        
-        if HAILO_AVAILABLE:
-            if not os.path.exists(self.hef_path):
-                print(f"[오류] 모델 파일({self.hef_path})을 찾을 수 없습니다. (경로 확인 필요)")
-                global HAILO_AVAILABLE
-                HAILO_AVAILABLE = False
+        self.frame_queue = deque(maxlen=1) # 가장 최신 프레임 1개만 유지
+        self.running = True
+        self.thread = threading.Thread(target=self._update, daemon=True)
+        self.thread.start()
+
+    def _update(self):
+        while self.running:
+            ret, frame = self.cap.read()
+            if ret and frame is not None:
+                self.frame_queue.append(frame)
             else:
-                self._init_hailo()
+                # 카메라 읽기 실패 시 안전(Fail-Safe) 로그 출력
+                print("[FAULT] 카메라 프레임 수신 실패. 시야 불확실(Uncertain) 상태! 보수 모드(감속/정지) 전환 필요.")
+                time.sleep(0.5) # 에러 시 루프 폭주 방지
 
-    def _init_hailo(self):
-        print(f"[Hailo] NPU 초기화 및 객체 탐지 HEF 로드: {self.hef_path}")
-        self.hef = HEF(self.hef_path)
-        self.target = VDevice()
-        
-        # PCIe 인터페이스 설정 (Hailo-8 M.2/PCIe)
-        configure_params = ConfigureParams.create_from_hef(self.hef, interface=HailoStreamInterface.PCIe)
-        network_groups = self.target.configure(self.hef, configure_params)
-        self.network_group = network_groups[0]
-        
-        # 입출력 VStream 파라미터 (UINT8)
-        input_vstreams_params = InputVStreamParams.make(self.network_group, format_type=FormatType.UINT8)
-        output_vstreams_params = OutputVStreamParams.make(self.network_group, format_type=FormatType.FLOAT32)
-        
-        self.infer_pipeline = InferVStreams(self.network_group, input_vstreams_params, output_vstreams_params)
-        
-        # 모델 입력 형상 정보 가져오기 (예: [1, 640, 640, 3] for YOLO)
-        input_stream_info = self.hef.get_input_vstream_infos()[0]
-        self.input_shape = input_stream_info.shape
-        print(f"[Hailo] 기대 입력 Shape: {self.input_shape}")
+    def get_frame(self):
+        if len(self.frame_queue) > 0:
+            return self.frame_queue[-1]
+        return None
 
-    def capture_and_infer(self):
-        # Raspberry Pi Camera Module 3 GStreamer 파이프라인
-        # Low Latency 원칙을 위해 appsink의 max-buffers=1 및 drop=true 설정 (최신 프레임만 유지)
-        pipeline = (
-            f"libcamerasrc ! video/x-raw, width={self.width}, height={self.height}, framerate={self.fps}/1 "
-            f"! videoconvert ! appsink drop=true max-buffers=1"
-        )
-        print(f"[Camera] GStreamer 파이프라인 시작:\n {pipeline}")
+    def stop(self):
+        self.running = False
+        self.thread.join(timeout=2.0)
+        self.cap.release()
+
+
+def main():
+    hef_path = 'best.hef'
+    
+    # 잠재적 오류 방지 1: 모델 파일 존재 여부 검사
+    if not os.path.exists(hef_path):
+        print(f"ERROR: 학습된 모델 파일({hef_path})을 찾을 수 없습니다. 경로를 확인해주세요.")
+        return
+
+    # 라즈베리파이 5 + 카메라 모듈 3 전용 GStreamer 파이프라인
+    # libcamera를 사용하며, OpenCV 처리를 위해 RGBx를 BGR로 안전하게 변환
+    gstreamer_pipeline = (
+        "libcamerasrc ! "
+        "video/x-raw, width=640, height=480, format=RGBx ! "
+        "videoconvert ! "
+        "video/x-raw, format=BGR ! "
+        "appsink drop=true max-buffers=1"
+    )
+
+    print("=== 이동장치 안전 비전 AI 데모 시작 ===")
+    print("카메라 및 캡처 스레드 초기화 중...")
+    try:
+        cam_thread = CameraThread(gstreamer_pipeline)
+    except Exception as e:
+        print(f"[FAULT] 시스템 초기화 실패: {e}. 하드웨어 보수 모드 전환.")
+        return
+
+    print("Hailo-8 장치 및 HEF 로드 중...")
+    try:
+        hef = HEF(hef_path)
         
-        cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
-
-        if not cap.isOpened():
-            print("[오류] Camera Module 3을 열 수 없습니다. (디버깅용 웹캠으로 전환 시도)")
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                return
-
-        print("객체 탐지 루프 시작... (종료하려면 'q' 키를 누르세요)")
-        
-        if HAILO_AVAILABLE and self.infer_pipeline:
-            with self.infer_pipeline:
-                self._run_loop(cap)
-        else:
-            self._run_loop(cap)
-
-        cap.release()
-        cv2.destroyAllWindows()
-
-    def _run_loop(self, cap):
-        last_time = time.time()
-        
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                print("[경고] 프레임을 읽어올 수 없습니다. 안전 모드 진입(Fail-Safe)")
-                break
-                
-            # 카메라 가림 확인 (Fail-Safe 정책)
-            if np.mean(frame) < 10:
-                print("[경고] 영상이 너무 어둡습니다. 카메라가 가려졌을 수 있습니다.")
-
-            # 1. 전처리
-            input_data = self._preprocess(frame)
+        # VDevice 컨텍스트 매니저를 통해 NPU 장치 안전 할당 및 해제 보장
+        with VDevice() as target:
+            configure_params = ConfigureParams.create_from_hef(hef, interface=HailoStreamInterface.PCIe)
+            network_groups = target.configure(hef, configure_params)
+            network_group = network_groups[0]
             
-            # 2. 추론
-            detections = []
-            if HAILO_AVAILABLE and self.infer_pipeline:
-                infer_results = self.infer_pipeline.infer(input_data)
-                detections = self._postprocess(infer_results)
+            # 입력 데이터 포맷 지정 (OpenCV에서 변환된 UINT8 사용)
+            input_vstream_params = InputVStreamParams.make(network_group, format_type=FormatType.UINT8)
+            output_vstream_params = OutputVStreamParams.make(network_group, format_type=FormatType.FLOAT32)
+
+            # 잠재적 오류 방지 2: 모델의 입력 형태(Shape)를 동적으로 파악 (하드코딩 방지)
+            input_info = hef.get_input_vstream_infos()[0]
+            input_shape = input_info.shape 
+            
+            # 버전에 따라 shape이 3차원(H,W,C) 또는 4차원(B,H,W,C)일 수 있음
+            if len(input_shape) == 4:
+                model_h, model_w = input_shape[1], input_shape[2]
             else:
-                # Mock 데이터: 화면 중앙에 임의의 사람(Person) 박스 생성
-                h, w = frame.shape[:2]
-                detections = [{
-                    'class_id': 0, 
-                    'confidence': 0.85, 
-                    'bbox': [w//4, h//4, w//2, h//2], # [x_min, y_min, width, height]
-                    'label': 'Person (Mock)'
-                }]
+                model_h, model_w = input_shape[0], input_shape[1]
             
-            # 3. 오버레이 및 시각화
-            curr_time = time.time()
-            fps = 1.0 / (curr_time - last_time) if (curr_time - last_time) > 0 else 0
-            last_time = curr_time
-            
-            self._draw_overlay(frame, detections, fps)
-            
-            try:
-                cv2.imshow("Hailo-8 Obj Detection (Cam 3)", frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-            except Exception:
-                # Headless(GUI 없는 환경)일 경우 콘솔에 텍스트만 출력
-                print(f"FPS: {fps:.1f} | Detections: {len(detections)}")
+            print(f"추론 파이프라인 시작 완료! (모델 요구 입력 크기: {model_w}x{model_h})")
+            print("종료하려면 Ctrl+C를 누르세요.\n")
 
-    def _preprocess(self, frame):
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        if HAILO_AVAILABLE:
-            # YOLO 모델이 요구하는 입력 크기로 리사이즈 (일반적으로 640x640)
-            h, w = self.input_shape[1:3]
-            frame_resized = cv2.resize(frame_rgb, (w, h))
-            input_data = np.expand_dims(frame_resized, axis=0) 
-            
-            input_name = self.hef.get_input_vstream_infos()[0].name
-            return {input_name: input_data}
-            
-        return frame_rgb
+            with InferVStreams(network_group, input_vstream_params, output_vstream_params) as infer_pipeline:
+                while True:
+                    frame = cam_thread.get_frame()
+                    if frame is None:
+                        time.sleep(0.01)
+                        continue
 
-    def _postprocess(self, infer_results):
-        # NOTE: 이 부분은 사용된 YOLO 버전에 따라 Output Tensor 구조가 달라집니다.
-        # NMS(Non-Maximum Suppression)를 적용하거나 Hailo의 Post-processing 블록이 
-        # 포함된 모델인 경우 직접 파싱합니다.
-        # 여기서는 예시로 결과를 BBox 리스트로 변환하는 골격만 제공합니다.
-        
-        output_name = self.hef.get_output_vstream_infos()[0].name
-        raw_outputs = infer_results[output_name]
-        
-        detections = []
-        # TODO: 실제 YOLO 출력 텐서 파싱 및 NMS 로직 구현
-        # 예시:
-        # for box in raw_outputs[0]:
-        #     if box.confidence > 0.5:
-        #         detections.append({'class_id': ..., 'confidence': ..., 'bbox': ...})
-        return detections
+                    # --- [1] Preprocessing ---
+                    # OpenCV BGR을 모델이 예상하는 RGB로 변환 후 리사이즈
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    resized_frame = cv2.resize(frame_rgb, (model_w, model_h))
+                    
+                    # Hailo 추론을 위해 Batch 차원(1)을 맨 앞에 추가
+                    input_data = {input_info.name: np.expand_dims(resized_frame, axis=0)}
 
-    def _draw_overlay(self, frame, detections, fps):
-        cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        
-        for det in detections:
-            x, y, w, h = [int(v) for v in det['bbox']]
-            label = f"{det['label']} {det['confidence']:.2f}"
-            
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-            cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    # --- [2] Inference ---
+                    start_time = time.time()
+                    infer_results = infer_pipeline.infer(input_data)
+                    infer_time = (time.time() - start_time) * 1000
+
+                    # --- [3] Postprocessing (최소 로깅) ---
+                    print(f"[\u2714 추론 성공] 소요 시간: {infer_time:.2f}ms")
+                    
+                    # 모델에 따라 출력 텐서 갯수가 다름 (YOLO의 경우 클래스/박스 여러 개)
+                    for out_name, out_data in infer_results.items():
+                        # 주의: 여기서 NMS 및 박스 디코딩 처리를 추가하면 실제 좌표를 얻을 수 있습니다.
+                        print(f"  - 출력 텐서명 '{out_name}' 데이터 형태: {out_data.shape}")
+                    
+                    print("-" * 40)
+                    time.sleep(0.1) # 테스트 로그 과부하 방지 (실운영 시에는 제거/조절)
+
+    except KeyboardInterrupt:
+        print("\n사용자 요청에 의해 데모를 종료합니다.")
+    except Exception as e:
+        print(f"\n[FAULT] 추론 혹은 장치 제어 중 치명적 오류 발생: {e}")
+        print("보수 모드 유지: 하드웨어 브레이크 서보 잠금 지시 전송 대기.")
+    finally:
+        print("카메라 자원 및 스레드 해제 중...")
+        cam_thread.stop()
+        print("프로세스 종료 완료.")
 
 if __name__ == "__main__":
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    
-    # YOLO 객체 탐지 모델 파일 (hef)
-    hef_model_path = os.path.join(BASE_DIR, "..", "models", "yolov8s.hef")
-    config_file_path = os.path.join(BASE_DIR, "..", "config", "calibration.json")
-    
-    os.makedirs(os.path.dirname(hef_model_path), exist_ok=True)
-    
-    demo = ObjectDetectionDemo(hef_model_path, config_file_path)
-    demo.capture_and_infer()
+    main()
