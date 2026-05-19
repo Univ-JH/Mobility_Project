@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from app.repositories.models import Device, Event
 from app.domain.states import DeviceState
 import pymongo

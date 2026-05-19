@@ -40,6 +40,10 @@ async def process_telemetry(data: TelemetryPayload):
             ble_connected=ble_connected,
             event_timestamp=data.timestamp
         )
+        
+    # Evaluate Policies
+    from app.services.policy_engine import evaluate_telemetry_policy
+    await evaluate_telemetry_policy(data)
 
 async def process_event(data: EventPayload):
     # 멱등성 검사가 내장된 저장 메서드 호출
@@ -49,5 +53,8 @@ async def process_event(data: EventPayload):
     
     if event_doc:
         print(f"[Event Ingested] {data.deviceId} -> {data.eventType} (seq {data.seq})")
+        # Evaluate Policies only if the event is newly ingested
+        from app.services.policy_engine import evaluate_event_policy
+        await evaluate_event_policy(data)
     else:
         print(f"[Duplicate/Ignored] {data.deviceId} seq {data.seq}")

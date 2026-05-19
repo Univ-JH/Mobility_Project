@@ -19,10 +19,12 @@ async def trigger_emergency(
     
     # In a real scenario, we would link this to the user's active ride/device.
     # For MVP, we insert a generic user_sos event.
+    device_id = f"user-app-{user_id}"
+    ride_id = str(uuid.uuid4())
     
     event = Event(
-        deviceId=f"user-app-{user_id}",
-        rideId=str(uuid.uuid4()),  # Generates a pseudo ride ID if none active
+        deviceId=device_id,
+        rideId=ride_id,
         seq=1,
         eventType="user_sos",
         severity="critical",
@@ -37,6 +39,25 @@ async def trigger_emergency(
     )
     await event.insert()
     
-    # Here we would also trigger a push notification to admin or emergency contacts
+    from app.repositories.models import EmergencyCase
+    from app.services.mqtt_service import publish_control_command
     
-    return create_success_response(data={"eventId": str(event.id)}, message="긴급 구조 신호(SOS) 전송 완료")
+    # 1. Create EmergencyCase
+    case_id = str(uuid.uuid4())
+    emergency = EmergencyCase(
+        caseId=case_id,
+        deviceId=device_id,
+        rideId=ride_id,
+        status="OPEN"
+    )
+    await emergency.insert()
+    
+    # 2. Trigger push notification/Siren via MQTT
+    await publish_control_command(
+        device_id=device_id,
+        action="set_idle_mode",
+        params={"siren": True, "brakeLevel": 3},
+        reason="User requested SOS via Mobile App"
+    )
+    
+    return create_success_response(data={"eventId": str(event.id), "caseId": case_id}, message="긴급 구조 신호(SOS) 전송 및 제어 명령 발송 완료")

@@ -66,3 +66,39 @@ class Event(Document):
         indexes = [
             pymongo.IndexModel([("deviceId", pymongo.ASCENDING), ("rideId", pymongo.ASCENDING), ("seq", pymongo.ASCENDING)], unique=True)
         ]
+
+class ControlCommandLog(Document):
+    commandId: Indexed(str, unique=True)
+    deviceId: Indexed(str)
+    rideId: Optional[str] = None
+    command: str
+    params: Dict[str, Any] = {}
+    reason: str
+    
+    issuedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ackAt: Optional[datetime] = None
+    result: Optional[str] = None
+    status: str = "PENDING"  # PENDING, ACKED, FAILED
+    
+    timeoutMs: int = 5000
+    retryCount: int = 0
+    
+    class Settings:
+        name = "control_command_logs"
+
+class EmergencyCase(Document):
+    caseId: Indexed(str, unique=True)
+    deviceId: Indexed(str)
+    rideId: Optional[str] = None
+    
+    openedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    status: Indexed(str) = "OPEN" # OPEN, ACKED, RESOLVED, FALSE_ALARM
+    
+    ackBy: Optional[str] = None
+    ackAt: Optional[datetime] = None
+    resolvedAt: Optional[datetime] = None
+    resolutionType: Optional[str] = None
+    note: Optional[str] = None
+    
+    class Settings:
+        name = "emergency_cases"
