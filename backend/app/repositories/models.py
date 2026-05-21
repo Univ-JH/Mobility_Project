@@ -64,7 +64,8 @@ class Event(Document):
         name = "events"
         # Compound index for idempotency (unique constraint)
         indexes = [
-            pymongo.IndexModel([("deviceId", pymongo.ASCENDING), ("rideId", pymongo.ASCENDING), ("seq", pymongo.ASCENDING)], unique=True)
+            pymongo.IndexModel([("deviceId", pymongo.ASCENDING), ("rideId", pymongo.ASCENDING), ("seq", pymongo.ASCENDING)], unique=True),
+            pymongo.IndexModel([("eventAt", pymongo.ASCENDING)], expireAfterSeconds=2592000) # 30 days TTL
         ]
 
 class ControlCommandLog(Document):
@@ -102,3 +103,21 @@ class EmergencyCase(Document):
     
     class Settings:
         name = "emergency_cases"
+
+class Policy(Document):
+    policyId: Indexed(str, unique=True)
+    version: int = 1
+    name: str
+    scope: str = "global"
+    priority: int = 100
+    
+    helmetRequired: bool = True
+    maxSpeedKph: float = 25.0
+    sidewalkBrakeLevel: int = 2
+    
+    isActive: bool = False
+    effectiveFrom: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "device_policies"

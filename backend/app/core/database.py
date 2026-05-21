@@ -3,7 +3,7 @@ from beanie import init_beanie
 from app.core.config import settings
 
 # 모델 추가 시 여기에 임포트 추가
-from app.repositories.models import Device, Event, User, ControlCommandLog, EmergencyCase
+from app.repositories.models import Device, Event, User, ControlCommandLog, EmergencyCase, Policy
 
 async def init_db():
     """
@@ -20,7 +20,7 @@ async def init_db():
     
     await init_beanie(
         database=database,
-        document_models=[Device, Event, User, ControlCommandLog, EmergencyCase]
+        document_models=[Device, Event, User, ControlCommandLog, EmergencyCase, Policy]
     )
     
     return client
