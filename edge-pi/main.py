@@ -20,7 +20,7 @@ from src.state.state_machine import SafetyStateMachine
 
 class SmartBikeSystem:
     def __init__(self):
-        print("🚲 [시스템] 스마트 자전거 안전 시스템 (통합 24/7 모드) 초기화...")
+        print("🚲 [시스템] 스마트 자전거 안전 시스템 (BLE 구조체 고도화 모드) 초기화...")
         
         self.brake = BrakeServo()
         self.sonar = UltrasonicSensor()
@@ -36,25 +36,26 @@ class SmartBikeSystem:
     async def _gather_sensor_data(self) -> Dict[str, Any]:
         """모든 센서 모듈에서 최신 데이터를 긁어모아 딕셔너리로 만듭니다."""
         
-        # BLE 데이터 안전 추출 (데이터가 아직 안 왔을 경우를 대비한 기본값)
+        # 구조체 통신으로 넘어온 event_label 추가 
         helmet_data = getattr(self.ble, 'last_parsed_data', {
-            "seq": -1, "is_worn": False, "is_accident": False
+            "seq": -1, "is_worn": False, "is_accident": False, "event_label": 0
         })
         loc_data = self.location.get_sensor_data()
         
-        # [핵심] 이중 사고 방어망 (OR 연산)
-        # 헬멧에서 사고를 감지하거나, 자전거 본체(IMU)가 충격을 받으면 모두 사고로 간주
+        # 이중 사고 방어망 (헬멧 사고 OR 본체 충격)
         is_accident = helmet_data.get("is_accident", False) or loc_data.get("bike_shock", False)
 
         return {
             "arduino_seq": helmet_data.get("seq", -1),
             "is_worn": helmet_data.get("is_worn", False),
             "is_accident": is_accident,
+            "event_label": helmet_data.get("event_label", 0), # 아두이노 상세 이벤트 라벨 (1~5)
             "distance_cm": self.sonar.get_distance(),
             "surface_class": self.vision.get_surface_type(),
             "speed": loc_data.get("speed", 0.0),
             "lat": loc_data.get("lat", 0.0),
-            "lon": loc_data.get("lon", 0.0)
+            "lon": loc_data.get("lon", 0.0),
+            "bike_shock": loc_data.get("bike_shock", False)
         }
 
     def _execute_brake_command(self, brake_level: str):
@@ -67,7 +68,6 @@ class SmartBikeSystem:
     def _send_mqtt_logs(self, brake_level: str, reason: str, sensor_data: Dict[str, Any]):
         """NoSQL DB에 최적화된 단일 JSON 패킷 전송을 수행합니다."""
         
-        # 브레이크 강도에 따른 위험도(Severity) 가중치 자동 매핑
         if brake_level == "level_emergency": severity = "CRITICAL"
         elif brake_level == "level_2": severity = "WARNING"
         elif brake_level == "level_1": severity = "INFO"
@@ -75,9 +75,7 @@ class SmartBikeSystem:
 
         current_time = time.time()
         
-        # [데이터 스로틀링 로직]
-        # 사고나 브레이크 개입(NONE이 아님)이 발생하면 즉시 전송!
-        # 정상 주행 중일 때는 2초에 한 번만 전송하여 서버 과부하 방지
+        # 이벤트 발생 시 즉시 전송, 평시에는 2초 대기
         if severity != "NONE" or (current_time - self.last_telemetry_time >= 2.0):
             self.mqtt.send_bike_state(
                 speed=sensor_data["speed"],
@@ -97,7 +95,6 @@ class SmartBikeSystem:
         """시스템의 심장 역할을 하는 무한 제어 루프"""
         self.is_running = True
         
-        # 백그라운드 모듈 가동
         self.mqtt.start()
         self.vision.start()
         self.location.start()
@@ -105,36 +102,49 @@ class SmartBikeSystem:
         
         print("✅ [시스템] 모든 모듈 무중단 가동 완료. 안전 루프 진입.")
 
+        # 아두이노 C++ 이벤트 라벨 매핑 딕셔너리
+        EVENT_NAME_MAP = {
+            1: "전도 (Fall)",
+            2: "충돌 (Crash)",
+            3: "급가속",
+            4: "급정거",
+            5: "충돌 후 이탈 의심 (Crash to Idle)"
+        }
+
         try:
             while self.is_running:
                 try:
                     sensor_data = await self._gather_sensor_data()
 
-                    # [페일 세이프 방어] 헬멧 통신이 끊겼을 때의 처리
+                    # [상태 판단 및 예외 처리]
                     if not self.ble.is_connected:
-                        if sensor_data["is_accident"]:
-                            # 블루투스가 끊겨도 본체 센서가 충격을 잡으면 긴급 제동
+                        if sensor_data["is_accident"]: # 헬멧이 끊겼어도 자전거 본체가 충격을 받으면 발동
                             brake_level, reason = "level_emergency", "통신 단절 중 본체 충격 감지!"
                         else:
-                            # 평상시 끊기면 브레이크를 풀고 수동 주행 허용
                             brake_level, reason = "level_0", "헬멧 통신 끊김: 수동 주행 모드"
                     else:
-                        # 통신이 정상이면 State Machine에 판단을 맡김
                         brake_level, reason, _ = self.state_machine.evaluate(sensor_data)
+                        
+                        # 아두이노 이벤트 디테일 덮어쓰기 로직
+                        # 사고가 발생했을 때, 그 원인이 헬멧이라면 정확한 원인을 AWS로 보냄
+                        if sensor_data["is_accident"]:
+                            label = sensor_data["event_label"]
+                            if label in [1, 2, 3, 4]:
+                                reason = f"긴급 제동 (헬멧 감지: {EVENT_NAME_MAP[label]})"
+                            elif sensor_data["bike_shock"]:
+                                reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
-                    # [비동기 격리] 브레이크 모터 동작(sleep)이 통신을 막지 않도록 별도 스레드에서 실행
+                    # 비동기 격리 (브레이크 서보 모터)
                     await asyncio.to_thread(self._execute_brake_command, brake_level)
                     
-                    # 통합된 MQTT 전송 실행
+                    # 서버(MQTT) 전송
                     self._send_mqtt_logs(brake_level, reason, sensor_data)
 
                 except Exception as e:
-                    # 초음파 튐, 포트 에러 등 일시적 오류 발생 시 시스템 사망 방지
                     print(f"⚠️ [시스템 에러] 루프 1회 스킵 (복구 중): {e}")
                     await asyncio.sleep(0.5)
                     continue
 
-                # 루프 사이클: 10Hz 유지 (0.1초)
                 await asyncio.sleep(0.1)
 
         except asyncio.CancelledError:
@@ -146,7 +156,7 @@ class SmartBikeSystem:
         print("🧹 [시스템] 안전 종료 시퀀스 가동...")
         self.is_running = False
         
-        self.brake.release_brake() # 종료 시 브레이크 락 해제
+        self.brake.release_brake() 
         self.brake.cleanup()
         self.sonar.cleanup()
         
