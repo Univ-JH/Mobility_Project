@@ -16,11 +16,14 @@ const float CRASH_THR = 4.0;
 const float FALL_THR = 1.2;
 const float SUDDEN_THR = 0.8;   // 급가속/급정거 임계치
 
+// 중복 전송을 방지할 디바운스 시간 간격 (3초)
+const unsigned long SUDDEN_LOCK_MS = 3000; 
+
 /* ===========================================================
    [2. 데이터 구조 및 통신 설정]
    =========================================================== */
 const uint8_t SCHEMA_VERSION = 1;
-uint32_t currentRideId = 1000; // const 제거 및 변수화 (첫 연결 시 1001이 됨)
+uint32_t currentRideId = 1000; // 블루투스 연결 시마다 1씩 증가 (첫 연결 시 1001)
 uint32_t globalEventSeq = 0;
 
 struct __attribute__((packed)) SafetyEventPayload {
@@ -40,10 +43,11 @@ void sendEncodedEvent(uint8_t label, float impactG, float ax, float ay) {
   payload.schemaVersion = SCHEMA_VERSION;
   payload.seq = globalEventSeq++;
   payload.timestamp = millis();
-  payload.rideId = currentRideId; // 가변 변수 적용
+  payload.rideId = currentRideId; 
   payload.eventLabel = label;
 
-  eventCharacteristic.writeValue((uint8_t*)&payload, sizeof(SafetyEventPayload));
+  // 라즈베리파이(Bleak) 환경과의 원활한 수신 핸드셰이킹을 위해 Response 방식으로 전송
+  eventCharacteristic.writeValueWithResponse((uint8_t*)&payload, sizeof(SafetyEventPayload));
   
   Serial.print("Event Sent [Seq: "); Serial.print(payload.seq); 
   Serial.print(", RideID: "); Serial.print(payload.rideId); Serial.print("] 타입: ");
@@ -101,9 +105,10 @@ void loop() {
   BLEDevice central = BLE.central();
   bool currentCentralConnected = central && central.connected();
 
+  // 블루투스 연결 상태 변화 감지 및 Ride ID 자동 제어
   if (currentCentralConnected != oldCentralConnected) {
     if (currentCentralConnected) {
-      currentRideId++; // 새로운 기기가 연결될 때마다 ID 1 증가
+      currentRideId++; 
       
       Serial.print("\n[BLE] 중앙 장치와 연결되었습니다. 기기 주소: ");
       Serial.println(central.address());
@@ -140,6 +145,7 @@ void loop() {
       statusCharacteristic.writeValue(0);
       Serial.println("[STATUS] 상태 변경 -> 헬멧 벗음 (IDLE)");
 
+      // 라벨 5: 착용 중 충돌이 있었는데 3초 이내에 벗겨진 경우 (정상 작동 확인 완료)
       if (wasCrashTriggered && (millis() - crashTime < 3000)) {
         sendEncodedEvent(5, 0, ax, ay); 
         tone(BUZZER_PIN, 3000, 1000); 
@@ -152,11 +158,19 @@ void loop() {
   float impact = sqrt(ax*ax + ay*ay + az*az);
   
   static unsigned long fallStartTime = 0; 
-  static unsigned long lastSuddenEventTime = 0; 
+  static unsigned long lastAccEventTime = 0;   // 급가속 개별 타이머
+  static unsigned long lastDecEventTime = 0;   // 급정거 개별 타이머
   
   bool isCurrentlyTilted = (abs(ax) > FALL_THR || abs(ay) > FALL_THR || az < -0.5);
 
-  if (impact > CRASH_THR) {
+  // 미착용 상태일 때는 사고 감지 연산을 전부 스킵하고 내부 타이머만 리셋
+  if (!isWearing) {
+    fallStartTime = 0;
+    if (wasCrashTriggered && (millis() - crashTime > 3000)) {
+      wasCrashTriggered = false;
+    }
+  }
+  else if (impact > CRASH_THR) {
     sendEncodedEvent(2, impact, ax, ay); 
     tone(BUZZER_PIN, 2000, 500); 
     
@@ -165,23 +179,25 @@ void loop() {
     
     fallStartTime = 0; 
   } 
-  else if (ax > SUDDEN_THR) {
-    if (millis() - lastSuddenEventTime > 500) {
+  // 고개를 크게 숙인게 아니고(수평 유지: abs(az) > 0.7) + 3초 이내에 중복 발생이 아닐 때만 급가속 판정
+  else if (ax > SUDDEN_THR && abs(az) > 0.7) {
+    if (millis() - lastAccEventTime > SUDDEN_LOCK_MS) {
       sendEncodedEvent(3, impact, ax, ay); 
       tone(BUZZER_PIN, 1500, 200); 
-      lastSuddenEventTime = millis(); 
+      lastAccEventTime = millis(); 
     }
     fallStartTime = 0; 
   }
-  else if (ax < -SUDDEN_THR) {
-    if (millis() - lastSuddenEventTime > 500) {
+  // 고개를 크게 숙인게 아니고(수평 유지: abs(az) > 0.7) + 3초 이내에 중복 발생이 아닐 때만 급정거 판정
+  else if (ax < -SUDDEN_THR && abs(az) > 0.7) {
+    if (millis() - lastDecEventTime > SUDDEN_LOCK_MS) {
       sendEncodedEvent(4, impact, ax, ay); 
       tone(BUZZER_PIN, 1500, 200); 
-      lastSuddenEventTime = millis(); 
+      lastDecEventTime = millis(); 
     }
     fallStartTime = 0; 
   }
-  else if (isCurrentlyTilted && isWearing) {
+  else if (isCurrentlyTilted) {
     if (fallStartTime == 0) {
       fallStartTime = millis(); 
     }
