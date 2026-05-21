@@ -7,9 +7,9 @@ HELMET_NAME = "SmartHelmet_Alpha"
 STATUS_CHAR_UUID = "19B10001-E8F2-537E-4F6C-D104768A1214"
 EVENT_CHAR_UUID = "19B10002-E8F2-537E-4F6C-D104768A1214"
 
-# 아두이노 구조체 포맷 규격 (<: 리틀엔디안, B: 1바이트, I: 4바이트)
-# uint8_t(B) + uint32_t(I) + uint32_t(I) + uint32_t(I) + uint8_t(B) = 총 14바이트
-EVENT_STRUCT_FORMAT = "<BIII"
+# [수정 완료] 아두이노 구조체 규격과 100% 일치하도록 포맷 변경
+# schemaVersion(B, 1) + seq(I, 4) + timestamp(I, 4) + rideId(I, 4) + eventLabel(B, 1) = 총 14바이트
+EVENT_STRUCT_FORMAT = "<BIIIB"
 
 def decode_event_label(label):
     mapping = {
@@ -27,16 +27,16 @@ def status_notification_handler(sender, data):
     status_text = "착용됨 (WORN)" if status == 1 else "벗음 (IDLE)"
     print(f"\n[STATUS CHANGE] 헬멧 상태: {status_text}")
 
-# 2. 사고 감지 이벤트 알림 콜백 (데이터 유실 방지 보정 추가)
+# 2. 사고 감지 이벤트 알림 콜백
 def event_notification_handler(sender, data):
-    # [수정] 데이터가 14바이트보다 부족하게 들어올 경우, 뒤쪽에 \x00을 채워 프로그램 다운 방지
+    # 통신 유실 등으로 데이터가 14바이트보다 부족하거나 넘칠 경우 보정
     if len(data) < 14:
         padded_data = data + b'\x00' * (14 - len(data))
     else:
         padded_data = data[:14]
 
     try:
-        # 보정된 바이트 패킷을 언팩
+        # 정확히 14바이트 포맷(<BIIIB)으로 언팩 진행
         schema_ver, seq, timestamp, ride_id, event_label = struct.unpack(EVENT_STRUCT_FORMAT, padded_data)
         event_name = decode_event_label(event_label)
         
@@ -75,7 +75,7 @@ async def main():
             
             print("데이터 수신 대기 중... (종료하려면 Ctrl+C)")
             
-            # [수정] 대기 루프 주기를 0.1초로 줄여 비동기 이벤트 반응성 상향
+            # 대기 루프 주기를 0.1초로 설정하여 반응성 유지
             while True:
                 await asyncio.sleep(0.1)
         else:
