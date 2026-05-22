@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// In a real app, this should come from process.env.VITE_API_BASE_URL
-const BASE_URL = 'http://localhost:8000/v1';
+// Use environment variable if available, else fallback to AWS EC2 IP for MVP
+// NOTE: If deploying Web to HTTPS (e.g. Vercel), the backend MUST ALSO be HTTPS to avoid Mixed Content errors.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://52.79.242.44:8000/v1';
 
 export const axiosInstance = axios.create({
   baseURL: BASE_URL,

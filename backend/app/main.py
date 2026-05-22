@@ -31,10 +31,21 @@ async def lifespan(app: FastAPI):
     mqtt_task.cancel()
     client.close()
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     lifespan=lifespan
+)
+
+# Set all CORS enabled origins (Allowing all for MVP)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins (MVP only. In prod, specify the exact domains)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
 )
 
 # Core Router Inclusion

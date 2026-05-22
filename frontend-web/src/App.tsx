@@ -6,6 +6,9 @@ import { Dashboard } from './screens/Dashboard';
 import { LiveMap } from './screens/LiveMap';
 import { EventLogs } from './screens/EventLogs';
 
+import { Policies } from './screens/Policies';
+import { Emergencies } from './screens/Emergencies';
+
 // Create a client for React Query
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +28,8 @@ const App: React.FC = () => {
             <Route index element={<Dashboard />} />
             <Route path="map" element={<LiveMap />} />
             <Route path="logs" element={<EventLogs />} />
+            <Route path="policies" element={<Policies />} />
+            <Route path="emergencies" element={<Emergencies />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

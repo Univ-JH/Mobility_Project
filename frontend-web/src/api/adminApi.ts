@@ -69,8 +69,16 @@ export const adminApi = {
   },
   
   exportLogs: () => {
-    // For download, we use standard fetch or window.open to handle the stream properly
-    // or axios with responseType: 'blob'
     return axiosInstance.get('/admin/export/logs', { responseType: 'blob' });
-  }
+  },
+
+  // Policies
+  getActivePolicy: () => axiosInstance.get<any, BaseResponse<any>>('/policies/active'),
+  updatePolicy: (data: any) => axiosInstance.post<any, BaseResponse<any>>('/policies', data),
+
+  // Emergencies
+  getActiveEmergencies: () => axiosInstance.get<any, BaseResponse<any[]>>('/emergencies'),
+  ackEmergency: (caseId: string) => axiosInstance.post<any, BaseResponse<any>>(`/emergencies/${caseId}/ack`),
+  resolveEmergency: (caseId: string, data: { resolutionType: string; note: string }) => 
+    axiosInstance.post<any, BaseResponse<any>>(`/emergencies/${caseId}/resolve`, data)
 };

@@ -1,10 +1,8 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-// Android emulator uses 10.0.2.2 to access host localhost.
-// iOS simulator uses localhost.
-// Physical device requires LAN IP.
-const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8000/v1' : 'http://localhost:8000/v1';
+// Use Expo env variable if available, else fallback to AWS MVP IP
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://52.79.242.44:8000/v1';
 
 export const axiosInstance = axios.create({
   baseURL: BASE_URL,

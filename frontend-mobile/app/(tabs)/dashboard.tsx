@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Shield, MapPin, Activity, AlertOctagon, Unlock, Lock } from 'lucide-react-native';
+import { userApi } from '../../src/api/userApi';
 
 export default function DashboardScreen() {
   // Prototype State
@@ -27,7 +28,19 @@ export default function DashboardScreen() {
       "Crash or sudden fall detected. Sending SOS to guardian in 10 seconds. Cancel if false alarm.",
       [
         { text: "Cancel SOS", onPress: () => setEmergency(false), style: "cancel" },
-        { text: "Send Now", onPress: () => setEmergency(false), style: "destructive" }
+        { 
+          text: "Send Now", 
+          onPress: async () => {
+            setEmergency(false);
+            try {
+              userApi.triggerEmergency("User requested SOS from Mobile Prototype", 37.5665, 126.9780);
+              Alert.alert("SOS Sent", "Emergency contacts and admins have been notified.");
+            } catch (e) {
+              Alert.alert("Error", "Failed to send SOS.");
+            }
+          }, 
+          style: "destructive" 
+        }
       ]
     );
   };

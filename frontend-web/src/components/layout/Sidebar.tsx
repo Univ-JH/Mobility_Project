@@ -55,6 +55,35 @@ export const Sidebar: React.FC = () => {
           <List size={20} />
           <span>Event Logs</span>
         </NavLink>
+        <NavLink 
+          to="/policies" 
+          style={({ isActive }) => ({
+            display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', 
+            borderRadius: '8px', textDecoration: 'none',
+            background: isActive ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+            color: isActive ? 'var(--accent-primary)' : 'var(--text-muted)',
+            fontWeight: isActive ? 600 : 400,
+            transition: 'all 0.2s'
+          })}
+        >
+          <ShieldAlert size={20} />
+          <span>Policies</span>
+        </NavLink>
+
+        <NavLink 
+          to="/emergencies" 
+          style={({ isActive }) => ({
+            display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', 
+            borderRadius: '8px', textDecoration: 'none',
+            background: isActive ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+            color: isActive ? 'var(--accent-critical)' : 'var(--text-muted)',
+            fontWeight: isActive ? 600 : 400,
+            transition: 'all 0.2s'
+          })}
+        >
+          <ShieldAlert size={20} />
+          <span>Emergencies</span>
+        </NavLink>
       </nav>
     </div>
   );
