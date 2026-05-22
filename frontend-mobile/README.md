@@ -1,17 +1,32 @@
-# Frontend Mobile (React Native)
+# Frontend Mobile (React Native / Expo)
 
-모빌리티 사용자(주행자)를 대상으로 제공되는 모바일 애플리케이션 화면 프로젝트입니다. 
+This folder contains the React Native (Expo) Mobile Application for the Safe Mobility System.
 
-## 기술 스택
-- **프레임워크**: React Native (TypeScript 환경 기반)
-- **전역 상태**: Zustand
-- **서버 통신/캐시**: React Query (API 연동)
+## Prototype Implementation
+Currently, the application is built as a **prototype**, providing a modern, dark-themed UI that simulates device pairing, real-time safety monitoring, and emergency handling. It uses `expo-router` for file-based navigation.
 
-## 사용자 맞춤형 뷰
-- **홈 주행 뷰어**: 기기의 상태(헬멧 연결 여부, 현재 배터리, 시스템 모드, 제동 상태)를 직관적이고 큼지막한 UI로 실시간 표현합니다.
-- **사고 응급 알람 (Panic Dialog)**: 엣지로부터 `Fall Suspected` (사고 판정) 신호를 폰이 받게되면, 앱 최상단에 붉은색 팝업 창과 카운트다운(통상 30초) 플로어를 띄워 사용자가 직접 '사고 아님(취소)' 조치할 수 있게 합니다.
-- **사고 발생 로그(Fall Suspected log)** 전후 10초간의 기기 상태(속도, 기울기, 배터리 전압 등)를 로그 파일로 생성하여 클라우드에 자동 업로드하는 기능입니다.
-- **에코/안전 주행 점수화**: 주행 중 급제동, 급가속, 과속 빈도를 React Query로 서버에 전송하고, 이를 바탕으로 주행 점수를 산출하여 시각화합니다.
+### Key Files and Descriptions:
+*   `app/index.tsx`: **Onboarding Screen.** Introduces the core value of the Safe Mobility System. Provides navigation to the Pairing screen or bypasses to the Dashboard.
+*   `app/pairing.tsx`: **Device Pairing Screen.** Simulates scanning and connecting via Bluetooth to the Raspberry Pi device (e.g., PI-Alpha).
+*   `app/(tabs)/_layout.tsx`: **Tab Navigation.** Configures the bottom tab bar with customized styling and `lucide-react-native` icons, linking to the Dashboard and Profile tabs.
+*   `app/(tabs)/dashboard.tsx`: **Main Dashboard Screen.**
+    *   **Features:** Displays real-time device stats (Helmet WORN/UNWORN, Device Locked/Active). Includes a live 'Current Environment' card that randomly switches between "Safe Road" and "Sidewalk Detected" to simulate AI vision inputs.
+    *   **Emergency Simulation:** Contains a "Simulate Crash" button that triggers a high-priority system alert (React Native `Alert.alert`), implementing the fail-safe notification UX flow.
+*   `app/(tabs)/profile.tsx`: **User Profile Screen.** Displays the user's safety score, recent ride history, and settings (Mock UI).
 
-## 역할
-모빌리티 운행 전과정에서, 사용자가 자신의 헬멧이 인식되었는지, 왜 갑자기 브레이크가 먹혔는지(인도 주행 모드 등) 실시간 원인 파악을 돕는 보조 계기판을 담당합니다. 또한 억울한 오작동 비상신호를 실제 콜백하지 않기위한 사용자 최종 필터 스위치 역할로서도 매우 중요합니다.
+## Future AWS & MQTT Integration
+When transitioning from the prototype to production:
+1.  **Real-Time Data (MQTT):** Replace the simulated `setInterval` logic in `dashboard.tsx` with an actual MQTT client subscription to your AWS IoT / Backend broker to receive real-time device telemetry.
+2.  **API Fetch (FastAPI/MongoDB):** Replace the hardcoded alerts and user profile data with data fetched from your backend REST API.
+3.  **Bluetooth (BLE):** Replace the mocked `setTimeout` pairing flow in `pairing.tsx` with a native BLE library (e.g., `react-native-ble-plx`) to communicate directly with the Arduino helmet.
+
+## Getting Started
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the Expo development server:
+   ```bash
+   npx expo start
+   ```

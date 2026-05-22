@@ -1,14 +1,21 @@
-# frontend-web/src
+# Frontend Web (React Dashboard)
 
-웹 UI 소스 코드의 실제 구현을 담는 디렉터리다.
+This folder contains the React-based Web Dashboard for the Safe Mobility System.
 
-## 호환성
-- 백엔드 API 계약(JSON shape, 에러코드, 응답 envelope)은 문서화된 `BACKEND_IMPLEMENTATION_PLAN.md`를 따른다.
-- MQTT event 계약 필드는 `.cursor/rules/60-mqtt-event-contracts.mdc`를 따른다.
+## Prototype Implementation
+Currently, the application is built as a **prototype**, with an aesthetic modern UI ready for integration with AWS and MongoDB. 
 
-## 확장성
-- 새로운 기능은 `api/`(통신)와 `screens/`(화면), `components/`(재사용 UI)로 분리한다.
+### Key Files and Descriptions:
+*   `src/main.tsx`: Entry point for the React application.
+*   `src/App.tsx`: Main routing component setup using `react-router-dom`.
+*   `src/index.css`: Global design tokens (colors, variables) and base CSS styles ensuring a premium, dark-mode look.
+*   `src/screens/Dashboard.tsx`: The primary dashboard screen.
+    *   **Features:** Displays real-time device stats, a placeholder map for live device tracking (ready for AWS Location Services), Alerts Timeline & Riding Environment charts (using `recharts`), and a Device Log Management table.
+    *   **Data:** Currently uses mocked data (`MOCK_STATS`, `MOCK_EVENTS`, `MOCK_CHART_DATA`) to simulate data fetched from an AWS-hosted API/MongoDB backend.
+*   `src/screens/Dashboard.css`: Dedicated stylesheet for the Dashboard, applying CSS Grid/Flexbox layouts and hover/pulse animations for a dynamic feel.
+*   `src/vite-env.d.ts`: TypeScript definitions for Vite.
 
-## 가시성/명확성
-- “실시간 스트림 파싱”과 “화면 상태”를 섞지 않는다(파싱은 `api/` 또는 전용 훅으로).
-
+## Future AWS & MongoDB Integration
+When transitioning from the prototype to production:
+1.  **MongoDB**: Replace the mock data arrays in `Dashboard.tsx` with asynchronous `fetch` calls to your FastAPI backend, which will query MongoDB collections (e.g., `events`, `devices`).
+2.  **AWS**: Integrate AWS Location Services for the `Map` component and AWS Cognito for authentication.
