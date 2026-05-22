@@ -38,17 +38,6 @@ services:
     env_file:
       - ./backend/.env
 
-  frontend:
-    build:
-      context: ./frontend-web
-      dockerfile: Dockerfile
-    container_name: mobility-frontend
-    restart: always
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-
 volumes:
   mongo-data:
   mosquitto-data:
