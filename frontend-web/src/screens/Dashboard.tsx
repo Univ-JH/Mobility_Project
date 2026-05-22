@@ -81,7 +81,7 @@ export const Dashboard: React.FC = () => {
                   data={pieData} innerRadius={60} outerRadius={90} paddingAngle={5}
                   dataKey="value" stroke="none"
                 >
-                  {pieData.map((entry, index) => (
+                  {pieData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>

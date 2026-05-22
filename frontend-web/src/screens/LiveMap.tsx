@@ -23,7 +23,7 @@ export const LiveMap: React.FC = () => {
             <p style={{ fontSize: '0.875rem' }}>Would render {locations?.length || 0} pins here.</p>
             
             {/* Example pseudo-pins */}
-            {locations?.map((loc, idx) => (
+            {locations?.map((loc, _) => (
               <div 
                 key={loc.deviceId}
                 style={{

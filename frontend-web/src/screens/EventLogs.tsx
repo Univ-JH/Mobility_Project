@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, AlertCircle } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { useEventLogs } from '../hooks/queries/useAdminQueries';
 import { format } from 'date-fns';
 import { adminApi } from '../api/adminApi';

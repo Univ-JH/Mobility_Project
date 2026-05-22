@@ -9,10 +9,10 @@ export interface BaseResponse<T> {
 }
 
 export interface AdminStats {
-  activeDevices: int;
-  emergenciesToday: int;
-  helmetCompliance: float;
-  avgBattery: float;
+  activeDevices: number;
+  emergenciesToday: number;
+  helmetCompliance: number;
+  avgBattery: number;
 }
 
 export interface LocationDto {
