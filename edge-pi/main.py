@@ -75,8 +75,15 @@ class SmartBikeSystem:
 
         current_time = time.time()
         
-        # 이벤트 발생 시 즉시 전송, 평시에는 2초 대기
-        if severity != "NONE" or (current_time - self.last_telemetry_time >= 2.0):
+        # 이벤트(사고 감지, 아두이노 특별 이벤트) 또는 위험(브레이크 개입) 상황 판단
+        is_emergency_event = (
+            severity != "NONE" or 
+            sensor_data.get("is_accident", False) or 
+            sensor_data.get("event_label", 0) != 0
+        )
+        
+        # 이벤트 발생 시 즉시 전송, 평시에는 60초 대기 (1분 주기)
+        if is_emergency_event or (current_time - self.last_telemetry_time >= 60.0):
             self.mqtt.send_bike_state(
                 speed=sensor_data["speed"],
                 road_type=sensor_data["surface_class"],
