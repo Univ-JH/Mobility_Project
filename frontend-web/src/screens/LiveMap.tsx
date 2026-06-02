@@ -1,8 +1,22 @@
 import React from 'react';
 import { useDeviceLocations } from '../hooks/queries/useAdminQueries';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix for default marker icon in react-leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 export const LiveMap: React.FC = () => {
   const { data: locations, isLoading } = useDeviceLocations();
+
+  // 강남역 부근 초기 좌표
+  const defaultCenter: [number, number] = [37.498095, 127.027610];
 
   return (
     <div className="glass-panel" style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
@@ -13,33 +27,26 @@ export const LiveMap: React.FC = () => {
         </span>
       </div>
       
-      <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', borderRadius: '8px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {/* Placeholder for actual Map integration (e.g., react-leaflet) */}
+      <div style={{ flex: 1, borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
         {isLoading ? (
-          <div>Loading map data...</div>
-        ) : (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-            <p>Map Integration Placeholder</p>
-            <p style={{ fontSize: '0.875rem' }}>Would render {locations?.length || 0} pins here.</p>
-            
-            {/* Example pseudo-pins */}
-            {locations?.map((loc, _) => (
-              <div 
-                key={loc.deviceId}
-                style={{
-                  position: 'absolute',
-                  top: `${40 + (Math.random() * 20)}%`, 
-                  left: `${40 + (Math.random() * 20)}%`,
-                  width: '12px', height: '12px',
-                  background: loc.state === 'running' ? 'var(--accent-primary)' : 'var(--accent-success)',
-                  borderRadius: '50%',
-                  boxShadow: '0 0 10px var(--accent-primary)',
-                  cursor: 'pointer'
-                }}
-                title={loc.deviceId}
-              />
-            ))}
+          <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+            Loading map data...
           </div>
+        ) : (
+          <MapContainer center={defaultCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {locations?.map((loc) => (
+              <Marker key={loc.deviceId} position={[loc.lat, loc.lng]}>
+                <Popup>
+                  <strong>{loc.deviceId}</strong><br />
+                  State: {loc.state}
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
         )}
       </div>
     </div>

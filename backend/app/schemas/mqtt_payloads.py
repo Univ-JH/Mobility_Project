@@ -38,6 +38,8 @@ class TelemetryPayload(BaseModel):
     motion: Optional[MotionData] = None
     vision: Optional[VisionData] = None
     health: Optional[HealthData] = None
+    latitude: Optional[float] = 0.0
+    longitude: Optional[float] = 0.0
 
 class EventContext(BaseModel):
     speedKph: float

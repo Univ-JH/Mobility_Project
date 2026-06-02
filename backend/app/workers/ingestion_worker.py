@@ -38,7 +38,9 @@ async def process_telemetry(data: TelemetryPayload):
             state=device.currentState,  # Keep current
             helmet_worn=helmet_worn,
             ble_connected=ble_connected,
-            event_timestamp=data.timestamp
+            event_timestamp=data.timestamp,
+            lat=data.latitude or 0.0,
+            lng=data.longitude or 0.0
         )
         
     # Evaluate Policies

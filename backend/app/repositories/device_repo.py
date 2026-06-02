@@ -26,7 +26,7 @@ async def create_or_update_device(dto: DeviceCreate) -> Device:
     await new_device.insert()
     return new_device
 
-async def update_device_status(device_id: str, state: DeviceState, helmet_worn: bool, ble_connected: bool, event_timestamp: datetime):
+async def update_device_status(device_id: str, state: DeviceState, helmet_worn: bool, ble_connected: bool, event_timestamp: datetime, lat: float = 0.0, lng: float = 0.0):
     device = await get_device(device_id)
     if not device:
         return None
@@ -38,6 +38,11 @@ async def update_device_status(device_id: str, state: DeviceState, helmet_worn: 
         device.bleConnected = ble_connected
         device.lastSeenAt = event_timestamp
         device.updatedAt = datetime.now(timezone.utc)
+        
+        if lat != 0.0 or lng != 0.0:
+            from app.repositories.models import Location
+            device.lastLocation = Location(lat=lat, lng=lng)
+            
         await device.save()
     
     return device
