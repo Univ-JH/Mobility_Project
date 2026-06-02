@@ -1,0 +1,44 @@
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: mobility-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: mobility-mqtt
+    restart: always
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mobility-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://mongo:27017
+      - MQTT_BROKER_URL=mqtt
+      - DATABASE_NAME=mobility_db
+    depends_on:
+      - mongo
+      - mqtt
+    env_file:
+      - ./backend/.env
+
+volumes:
+  mongo-data:
+  mosquitto-data:
+  mosquitto-log:
