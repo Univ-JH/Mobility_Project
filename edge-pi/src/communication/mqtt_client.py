@@ -34,9 +34,10 @@ class BikeMQTTClient:
         except Exception as e:
             print(f"⚠️ [MQTT] 시작 에러: {e}")
 
+    # ★ 인자 이름 변경: brake_level -> brake_action
     def send_bike_state(self, speed: float, road_type: str, lat: float, lon: float, 
                         arduino_seq: int, is_worn: bool, is_accident: bool, 
-                        severity: str, reason: str, brake_level: str):
+                        severity: str, reason: str, brake_action: str):
         """
         자전거의 모든 센서 및 판단 상태를 하나의 JSON 패킷으로 묶어 서버로 연속 전송합니다.
         """
@@ -56,7 +57,7 @@ class BikeMQTTClient:
             "safety": {
                 "severity": severity,         # 10. 위험도 (NONE / INFO / WARNING / CRITICAL)
                 "reason": reason,             # 11. 브레이크 작동 이유
-                "brake_level": brake_level    # 12. 브레이크 제어 강도 (level_0 ~ emergency)
+                "brake_action": brake_action  # 12. 브레이크 제어 액션 (BRAKE_ENGAGE / NORMAL 등)
             }
         }
 

@@ -29,3 +29,4 @@ IMU_SHOCK_THRESHOLD = 2.5  # 2.5G 이상의 충격을 받으면 사고로 간주
 # 4. AI 비전 판단 기준값
 # ==========================================
 VISION_CONFIDENCE_THRESHOLD = 0.50  # 50% 미만의 확신도면 속도 감속 (Fail-Safe)
+WALK_SPEED_THRESHOLD = 5.0          # 5.0km/h 미만은 '끌바' 또는 '정차'로 간주 (인도 진입 허용)

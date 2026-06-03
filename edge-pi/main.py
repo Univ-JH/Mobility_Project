@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict, Any
 
 # 1. 하드웨어 제어 모듈
-from src.control.servo_control import BrakeServo
+from src.control.servo_control import BrakeController
 
 # 2. 통신 모듈
 from src.communication.ble_manager import HelmetBLEManager
@@ -21,7 +21,7 @@ class SmartBikeSystem:
     def __init__(self):
         print("🚲 [시스템] 스마트 자전거 안전 시스템 (센서 최적화 모드) 초기화...")
         
-        self.brake = BrakeServo()
+        self.brake = BrakeController()
         self.ble = HelmetBLEManager()
         self.mqtt = BikeMQTTClient()
         self.vision = VisionReceiver()
@@ -58,18 +58,17 @@ class SmartBikeSystem:
             "bike_shock": loc_data.get("bike_shock", False)
         }
 
-    def _execute_brake_command(self, brake_level: str):
-        """판단 결과에 따라 실제 서보 모터를 움직입니다."""
-        if brake_level == "level_emergency": self.brake.pull_brake(power=100)
-        elif brake_level == "level_2": self.brake.pull_brake(power=60)
-        elif brake_level == "level_1": self.brake.pull_brake(power=30)
-        elif brake_level == "level_0": self.brake.release_brake()
+    def _execute_brake_command(self, action: str):
+        """디스크 브레이크 특성에 맞춘 이진(Binary) 제어"""
+        if action == "BRAKE_ENGAGE": 
+            self.brake.pull_brake()  # 100% 풀브레이킹
+        else: 
+            self.brake.release_brake() # WARNING_ONLY나 NORMAL일 때는 브레이크 해제
 
-    def _send_mqtt_logs(self, brake_level: str, reason: str, sensor_data: Dict[str, Any]):
+    def _send_mqtt_logs(self, action: str, reason: str, sensor_data: Dict[str, Any]):
         """스마트 데이터 전송 (이벤트 발동 or 상태 변경 or 1분 경과 시에만 발송)"""
-        if brake_level == "level_emergency": severity = "CRITICAL"
-        elif brake_level == "level_2": severity = "WARNING"
-        elif brake_level == "level_1": severity = "INFO"
+        if action == "BRAKE_ENGAGE": severity = "CRITICAL"
+        elif action == "WARNING_ONLY": severity = "WARNING"
         else: severity = "NONE"
 
         current_time = time.time()
@@ -79,7 +78,7 @@ class SmartBikeSystem:
         
         # 2. 전송 조건 계산
         trigger_state = (current_moving_state != self.last_moving_state) # 정지<->이동 바뀜
-        trigger_event = (severity != "NONE")                             # 이벤트(브레이크) 발생
+        trigger_event = (severity != "NONE")                             # 이벤트(경고/제동) 발생
         trigger_time  = (current_time - self.last_telemetry_time >= 60.0) # 60초(1분) 경과
 
         # 3. 셋 중 하나라도 만족하면 전송
@@ -94,7 +93,7 @@ class SmartBikeSystem:
                 is_accident=sensor_data["is_accident"],
                 severity=severity,
                 reason=reason,
-                brake_level=brake_level
+                brake_action=action  # ★ AWS 스키마와 완벽 매칭
             )
             # 상태 및 시간 최신화
             self.last_telemetry_time = current_time
@@ -120,14 +119,16 @@ class SmartBikeSystem:
                 try:
                     sensor_data = await self._gather_sensor_data()
 
+                    # [상태 판단 및 예외 처리]
                     if not self.ble.is_connected:
-                        if sensor_data["is_accident"]: 
-                            brake_level, reason = "level_emergency", "통신 단절 중 본체 충격 감지!"
+                        if sensor_data["is_accident"]: # 헬멧이 끊겼어도 자전거 본체가 충격을 받으면 발동
+                            action, reason = "BRAKE_ENGAGE", "통신 단절 중 본체 충격 감지!"
                         else:
-                            brake_level, reason = "level_0", "헬멧 통신 끊김: 수동 주행 모드"
+                            action, reason = "NORMAL", "헬멧 통신 끊김: 수동 주행 모드"
                     else:
-                        brake_level, reason, _ = self.state_machine.evaluate(sensor_data)
+                        action, reason, _ = self.state_machine.evaluate(sensor_data)
                         
+                        # 아두이노 이벤트 디테일 덮어쓰기 로직
                         if sensor_data["is_accident"]:
                             label = sensor_data["event_label"]
                             if label in [1, 2, 3, 4]:
@@ -135,8 +136,11 @@ class SmartBikeSystem:
                             elif sensor_data["bike_shock"]:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
-                    await asyncio.to_thread(self._execute_brake_command, brake_level)
-                    self._send_mqtt_logs(brake_level, reason, sensor_data)
+                    # 비동기 격리 (브레이크 서보 모터)
+                    await asyncio.to_thread(self._execute_brake_command, action)
+                    
+                    # 서버(MQTT) 전송
+                    self._send_mqtt_logs(action, reason, sensor_data)
 
                 except Exception as e:
                     print(f"⚠️ [시스템 에러] 루프 1회 스킵 (복구 중): {e}")
