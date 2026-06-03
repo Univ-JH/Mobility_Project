@@ -4,7 +4,6 @@ from typing import Dict, Any
 
 # 1. 하드웨어 제어 모듈
 from src.control.servo_control import BrakeServo
-from src.control.ultrasonic import UltrasonicSensor
 
 # 2. 통신 모듈
 from src.communication.ble_manager import HelmetBLEManager
@@ -20,10 +19,9 @@ from src.state.state_machine import SafetyStateMachine
 
 class SmartBikeSystem:
     def __init__(self):
-        print("🚲 [시스템] 스마트 자전거 안전 시스템 (BLE 구조체 고도화 모드) 초기화...")
+        print("🚲 [시스템] 스마트 자전거 안전 시스템 (센서 최적화 모드) 초기화...")
         
         self.brake = BrakeServo()
-        self.sonar = UltrasonicSensor()
         self.ble = HelmetBLEManager()
         self.mqtt = BikeMQTTClient()
         self.vision = VisionReceiver()
@@ -31,15 +29,18 @@ class SmartBikeSystem:
         self.state_machine = SafetyStateMachine(ride_id=PI_ID)
 
         self.is_running = False
+        
+        # [데이터 통신 최적화 변수]
         self.last_telemetry_time = 0.0
+        self.last_moving_state = False # 이전 주행 상태 기억 (False=정지, True=이동)
 
     async def _gather_sensor_data(self) -> Dict[str, Any]:
         """모든 센서 모듈에서 최신 데이터를 긁어모아 딕셔너리로 만듭니다."""
         
-        # 구조체 통신으로 넘어온 event_label 추가 
         helmet_data = getattr(self.ble, 'last_parsed_data', {
             "seq": -1, "is_worn": False, "is_accident": False, "event_label": 0
-        })
+        }).copy()
+        
         loc_data = self.location.get_sensor_data()
         
         # 이중 사고 방어망 (헬멧 사고 OR 본체 충격)
@@ -49,8 +50,7 @@ class SmartBikeSystem:
             "arduino_seq": helmet_data.get("seq", -1),
             "is_worn": helmet_data.get("is_worn", False),
             "is_accident": is_accident,
-            "event_label": helmet_data.get("event_label", 0), # 아두이노 상세 이벤트 라벨 (1~5)
-            "distance_cm": self.sonar.get_distance(),
+            "event_label": helmet_data.get("event_label", 0), 
             "surface_class": self.vision.get_surface_type(),
             "speed": loc_data.get("speed", 0.0),
             "lat": loc_data.get("lat", 0.0),
@@ -66,8 +66,7 @@ class SmartBikeSystem:
         elif brake_level == "level_0": self.brake.release_brake()
 
     def _send_mqtt_logs(self, brake_level: str, reason: str, sensor_data: Dict[str, Any]):
-        """NoSQL DB에 최적화된 단일 JSON 패킷 전송을 수행합니다."""
-        
+        """스마트 데이터 전송 (이벤트 발동 or 상태 변경 or 1분 경과 시에만 발송)"""
         if brake_level == "level_emergency": severity = "CRITICAL"
         elif brake_level == "level_2": severity = "WARNING"
         elif brake_level == "level_1": severity = "INFO"
@@ -75,8 +74,16 @@ class SmartBikeSystem:
 
         current_time = time.time()
         
-        # 이벤트 발생 시 즉시 전송, 평시에는 2초 대기
-        if severity != "NONE" or (current_time - self.last_telemetry_time >= 2.0):
+        # 1. 노이즈 필터링된 현재 이동 상태 판별 (GPS 속도 1.0km/h 기준)
+        current_moving_state = sensor_data["speed"] > 1.0
+        
+        # 2. 전송 조건 계산
+        trigger_state = (current_moving_state != self.last_moving_state) # 정지<->이동 바뀜
+        trigger_event = (severity != "NONE")                             # 이벤트(브레이크) 발생
+        trigger_time  = (current_time - self.last_telemetry_time >= 60.0) # 60초(1분) 경과
+
+        # 3. 셋 중 하나라도 만족하면 전송
+        if trigger_event or trigger_state or trigger_time:
             self.mqtt.send_bike_state(
                 speed=sensor_data["speed"],
                 road_type=sensor_data["surface_class"],
@@ -89,7 +96,9 @@ class SmartBikeSystem:
                 reason=reason,
                 brake_level=brake_level
             )
+            # 상태 및 시간 최신화
             self.last_telemetry_time = current_time
+            self.last_moving_state = current_moving_state
 
     async def main_loop(self):
         """시스템의 심장 역할을 하는 무한 제어 루프"""
@@ -102,13 +111,8 @@ class SmartBikeSystem:
         
         print("✅ [시스템] 모든 모듈 무중단 가동 완료. 안전 루프 진입.")
 
-        # 아두이노 C++ 이벤트 라벨 매핑 딕셔너리
         EVENT_NAME_MAP = {
-            1: "전도 (Fall)",
-            2: "충돌 (Crash)",
-            3: "급가속",
-            4: "급정거",
-            5: "충돌 후 이탈 의심 (Crash to Idle)"
+            1: "전도 (Fall)", 2: "충돌 (Crash)", 3: "급가속", 4: "급정거", 5: "충돌 후 이탈 의심"
         }
 
         try:
@@ -116,28 +120,22 @@ class SmartBikeSystem:
                 try:
                     sensor_data = await self._gather_sensor_data()
 
-                    # [상태 판단 및 예외 처리]
                     if not self.ble.is_connected:
-                        if sensor_data["is_accident"]: # 헬멧이 끊겼어도 자전거 본체가 충격을 받으면 발동
+                        if sensor_data["is_accident"]: 
                             brake_level, reason = "level_emergency", "통신 단절 중 본체 충격 감지!"
                         else:
                             brake_level, reason = "level_0", "헬멧 통신 끊김: 수동 주행 모드"
                     else:
                         brake_level, reason, _ = self.state_machine.evaluate(sensor_data)
                         
-                        # 아두이노 이벤트 디테일 덮어쓰기 로직
-                        # 사고가 발생했을 때, 그 원인이 헬멧이라면 정확한 원인을 AWS로 보냄
                         if sensor_data["is_accident"]:
                             label = sensor_data["event_label"]
                             if label in [1, 2, 3, 4]:
-                                reason = f"긴급 제동 (헬멧 감지: {EVENT_NAME_MAP[label]})"
+                                reason = f"긴급 제동 (헬멧 감지: {EVENT_NAME_MAP.get(label, '알 수 없음')})"
                             elif sensor_data["bike_shock"]:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
-                    # 비동기 격리 (브레이크 서보 모터)
                     await asyncio.to_thread(self._execute_brake_command, brake_level)
-                    
-                    # 서버(MQTT) 전송
                     self._send_mqtt_logs(brake_level, reason, sensor_data)
 
                 except Exception as e:
@@ -158,7 +156,6 @@ class SmartBikeSystem:
         
         self.brake.release_brake() 
         self.brake.cleanup()
-        self.sonar.cleanup()
         
         self.location.stop()
         self.vision.stop()
@@ -171,4 +168,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(system.main_loop())
     except KeyboardInterrupt:
-        print("\n🛑 사용자 종료 명령(Ctrl+C) 감지. 장치를 정리합니다.")
+        pass
