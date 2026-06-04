@@ -17,7 +17,7 @@ async def start_mqtt_worker():
             async with aiomqtt.Client(
                 hostname=settings.MQTT_BROKER_URL,
                 port=settings.MQTT_PORT,
-                client_id=settings.MQTT_CLIENT_ID
+                identifier=settings.MQTT_CLIENT_ID
             ) as client:
                 print(f"Connected to MQTT broker at {settings.MQTT_BROKER_URL}:{settings.MQTT_PORT}")
                 

@@ -39,7 +39,7 @@ async def publish_control_command(device_id: str, action: str, params: dict = No
         async with aiomqtt.Client(
             hostname=settings.MQTT_BROKER_URL,
             port=settings.MQTT_PORT,
-            client_id=f"{settings.MQTT_CLIENT_ID}-pub-{uuid.uuid4().hex[:8]}"
+            identifier=f"{settings.MQTT_CLIENT_ID}-pub-{uuid.uuid4().hex[:8]}"
         ) as client:
             await client.publish(
                 topic=topic,
