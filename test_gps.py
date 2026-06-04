@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 # AWS 서버 IP 주소
 MQTT_BROKER = "52.79.242.44"
 MQTT_PORT = 1883
-TOPIC = "smartbike/alpha/pi_01/telemetry"
+# 백엔드가 수신하는 토픽으로 변경 (device/pi_01/telemetry)
+TOPIC = "device/pi_01/telemetry"
 
 # 초기 시작 위치 (강남역 부근)
 BASE_LAT = 37.498095

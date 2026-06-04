@@ -27,10 +27,11 @@ MQTT_CLIENT_ID = f"alpha_node_{PI_ID}"
 
 # ==========================================
 # [3] MQTT 발행(Publish) 토픽 설정
+# 백엔드가 수신하는 토픽 규격(device/+/telemetry)에 맞춤
 # ==========================================
-MQTT_TOPIC_EVENT = f"smartbike/alpha/{PI_ID}/events"           
-MQTT_TOPIC_EMERGENCY = f"smartbike/alpha/{PI_ID}/emergency"    
-MQTT_TOPIC_TELEMETRY = f"smartbike/alpha/{PI_ID}/telemetry"
+MQTT_TOPIC_EVENT = f"device/{PI_ID}/event"           
+MQTT_TOPIC_EMERGENCY = f"device/{PI_ID}/emergency"    
+MQTT_TOPIC_TELEMETRY = f"device/{PI_ID}/telemetry"
 
 # ==========================================
 # [4] AI 비전 (도로/인도 판별) 통신 설정
