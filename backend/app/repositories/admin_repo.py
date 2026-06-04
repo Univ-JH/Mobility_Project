@@ -27,7 +27,7 @@ async def get_dashboard_stats() -> Dict[str, Any]:
         {"$match": {"eventAt": {"$gte": today_start}, "payload.health.batteryPct": {"$exists": True}}},
         {"$group": {"_id": None, "avg_battery": {"$avg": "$payload.health.batteryPct"}}}
     ]
-    battery_res = [doc async for doc in Event.aggregate(pipeline)]
+    battery_res = [doc async for doc in Event.get_motor_collection().aggregate(pipeline)]
     avg_battery = battery_res[0]["avg_battery"] if battery_res else 0.0
     
     return {
@@ -60,7 +60,7 @@ async def get_alerts_timeline() -> List[Dict[str, Any]]:
         }},
         {"$sort": {"_id": 1}}
     ]
-    res = [doc async for doc in Event.aggregate(pipeline)]
+    res = [doc async for doc in Event.get_motor_collection().aggregate(pipeline)]
     return [{"time": r["_id"], "count": r["count"]} for r in res]
 
 async def get_environment_stats() -> Dict[str, float]:
@@ -75,7 +75,7 @@ async def get_environment_stats() -> Dict[str, float]:
             "count": {"$sum": 1}
         }}
     ]
-    res = [doc async for doc in Event.aggregate(pipeline)]
+    res = [doc async for doc in Event.get_motor_collection().aggregate(pipeline)]
 
     counts = {"sidewalk": 0, "road": 0}
     for r in res:
