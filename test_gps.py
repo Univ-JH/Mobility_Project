@@ -10,14 +10,14 @@ MQTT_PORT = 1883
 TOPIC = "device/pi_01/telemetry"
 
 # 초기 시작 위치 (강남역 부근)
-BASE_LAT = 37.498095
-BASE_LON = 127.027610
+BASE_LAT = 35.15905
+BASE_LON = 129.0372
 
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
-        print("✅ AWS MQTT Broker 연결 성공!")
+def on_connect(client, userdata, flags, reason_code, properties=None):
+    if reason_code == 0:
+        print("AWS MQTT Broker 연결 성공!")
     else:
-        print(f"❌ 연결 실패, 에러 코드: {rc}")
+        print(f"연결 실패, 에러 코드: {reason_code}")
 
 def send_mock_gps():
     # paho-mqtt v2.0 호환성 해결

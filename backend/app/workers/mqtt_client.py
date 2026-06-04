@@ -39,3 +39,6 @@ async def start_mqtt_worker():
         except aiomqtt.MqttError as error:
             print(f"MQTT Error: {error}. Reconnecting in {reconnect_interval} seconds...")
             await asyncio.sleep(reconnect_interval)
+        except Exception as error:
+            print(f"MQTT Worker unexpected error: {type(error).__name__}: {error}. Reconnecting in {reconnect_interval} seconds...")
+            await asyncio.sleep(reconnect_interval)
