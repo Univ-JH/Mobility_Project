@@ -86,6 +86,9 @@ class ControlCommandLog(Document):
     
     class Settings:
         name = "control_command_logs"
+        indexes = [
+            pymongo.IndexModel([("issuedAt", pymongo.ASCENDING)], expireAfterSeconds=2592000)  # 30 days TTL
+        ]
 
 class EmergencyCase(Document):
     caseId: Indexed(str, unique=True)
@@ -103,6 +106,9 @@ class EmergencyCase(Document):
     
     class Settings:
         name = "emergency_cases"
+        indexes = [
+            pymongo.IndexModel([("openedAt", pymongo.ASCENDING)], expireAfterSeconds=7776000)  # 90 days TTL
+        ]
 
 class Policy(Document):
     policyId: Indexed(str, unique=True)

@@ -27,7 +27,7 @@ async def read_device_locations() -> Any:
 @router.get("/analytics/alerts-timeline")
 async def read_alerts_timeline() -> Any:
     timeline = await admin_service.get_alerts_timeline()
-    return create_success_response(data=timeline.model_dump(), message="타임라인 조회 성공")
+    return create_success_response(data=[b.model_dump() for b in timeline.timeline], message="타임라인 조회 성공")
 
 @router.get("/analytics/environment")
 async def read_environment_stats() -> Any:

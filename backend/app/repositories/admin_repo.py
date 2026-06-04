@@ -42,7 +42,7 @@ async def get_active_locations() -> List[Device]:
     five_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
     return await Device.find(
         Device.lastSeenAt >= five_mins_ago,
-        Device.lastLocation != None
+        {"lastLocation": {"$ne": None}}
     ).to_list()
 
 async def get_alerts_timeline() -> List[Dict[str, Any]]:
