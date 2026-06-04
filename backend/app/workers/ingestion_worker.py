@@ -32,7 +32,9 @@ async def process_telemetry(data: TelemetryPayload):
     
     from app.repositories.device_repo import get_device
     device = await get_device(data.deviceId)
-    if device:
+    if not device:
+        print(f"[Telemetry Dropped] Unknown device: {data.deviceId}")
+    else:
         await update_device_status(
             device_id=data.deviceId,
             state=device.currentState,  # Keep current

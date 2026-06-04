@@ -32,7 +32,10 @@ async def update_device_status(device_id: str, state: DeviceState, helmet_worn: 
         return None
         
     # 최신 이벤트인지 확인 후 덮어쓰기 (순서 역전 방지)
-    if not device.lastSeenAt or event_timestamp > device.lastSeenAt:
+    last_seen = device.lastSeenAt
+    if last_seen and last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=timezone.utc)
+    if not last_seen or event_timestamp > last_seen:
         device.currentState = state
         device.helmetWorn = helmet_worn
         device.bleConnected = ble_connected
