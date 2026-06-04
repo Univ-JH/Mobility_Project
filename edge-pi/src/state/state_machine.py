@@ -55,9 +55,15 @@ class SafetyStateMachine:
             return "level_emergency", reason, 1.0
 
         # ---------------------------------------------------------
-        # [Priority 1] Obstacle Warning (후방 장애물 충돌 위험)
-        # 초음파 에러값(0 이하) 방어 포함
+        # [Priority 1] Obstacle Warning (후방 감지: 레이더 및 초음파)
         # ---------------------------------------------------------
+        rear_approach = sensor_data.get("rear_approach", False)
+        if rear_approach:
+            reason = "Fast approaching target detected by mmWave Radar"
+            # 추돌 위험이 있으므로 급브레이크(level_2) 대신 가벼운 주의(level_1)와 부저 알람 부여
+            self._log_state_transition("REAR_APPROACH_WARNING", reason, "level_1")
+            return "level_1", reason, 1.0
+
         if 0 < sonar_dist < self.OBSTACLE_WARNING_DIST:
             reason = f"Rear obstacle too close: {sonar_dist:.1f}cm"
             self._log_state_transition("COLLISION_WARNING", reason, "level_2")

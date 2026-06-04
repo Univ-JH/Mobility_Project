@@ -5,6 +5,7 @@ from typing import Dict, Any
 # 1. 하드웨어 제어 모듈
 from src.control.servo_control import BrakeServo
 from src.control.ultrasonic import UltrasonicSensor
+from src.control.radar import MmwaveRadarSensor
 
 # 2. 통신 모듈
 from src.communication.ble_manager import HelmetBLEManager
@@ -24,6 +25,7 @@ class SmartBikeSystem:
         
         self.brake = BrakeServo()
         self.sonar = UltrasonicSensor()
+        self.radar = MmwaveRadarSensor()
         self.ble = HelmetBLEManager()
         self.mqtt = BikeMQTTClient()
         self.vision = VisionReceiver()
@@ -51,6 +53,7 @@ class SmartBikeSystem:
             "is_accident": is_accident,
             "event_label": helmet_data.get("event_label", 0), # 아두이노 상세 이벤트 라벨 (1~5)
             "distance_cm": self.sonar.get_distance(),
+            "rear_approach": self.radar.check_rear_approach(),
             "surface_class": self.vision.get_surface_type(),
             "speed": loc_data.get("speed", 0.0),
             "lat": loc_data.get("lat", 0.0),
@@ -141,6 +144,10 @@ class SmartBikeSystem:
                             elif sensor_data["bike_shock"]:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
+                    # 후방 고속 접근 감지 시 부저 알림
+                    if sensor_data.get("rear_approach"):
+                        self.radar.trigger_warning()
+
                     # 비동기 격리 (브레이크 서보 모터)
                     await asyncio.to_thread(self._execute_brake_command, brake_level)
                     
@@ -166,6 +173,7 @@ class SmartBikeSystem:
         self.brake.release_brake() 
         self.brake.cleanup()
         self.sonar.cleanup()
+        self.radar.cleanup()
         
         self.location.stop()
         self.vision.stop()
