@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from app.repositories.models import Device
 from app.domain.states import DeviceState
 from app.schemas.device_dto import DeviceCreate
@@ -47,5 +47,16 @@ async def update_device_status(device_id: str, state: DeviceState, helmet_worn: 
             device.lastLocation = Location(lat=lat, lng=lng)
             
         await device.save()
-    
+
     return device
+
+async def get_devices_by_owner(user_id: str) -> List[Device]:
+    return await Device.find(Device.ownerUserId == user_id).to_list()
+
+async def deregister_device(device_id: str, user_id: str) -> bool:
+    device = await get_device(device_id)
+    if not device or device.ownerUserId != user_id:
+        return False
+    device.ownerUserId = ""
+    await device.save()
+    return True

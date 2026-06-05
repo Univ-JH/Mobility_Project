@@ -19,6 +19,33 @@ async def register_device(device_in: DeviceCreate) -> Any:
         message="장치 등록 성공"
     )
 
+@router.get("")
+async def list_my_devices(user_id: str = Depends(get_current_user)) -> Any:
+    from app.repositories.device_repo import get_devices_by_owner
+    devices = await get_devices_by_owner(user_id)
+    return create_success_response(
+        data=[
+            {
+                "deviceId": d.deviceId,
+                "deviceType": d.deviceType,
+                "currentState": d.currentState.value,
+                "bleConnected": d.bleConnected,
+                "helmetWorn": d.helmetWorn,
+                "lastSeenAt": d.lastSeenAt.isoformat() if d.lastSeenAt else None,
+            }
+            for d in devices
+        ],
+        message="디바이스 목록 조회 성공"
+    )
+
+@router.delete("/{device_id}")
+async def deregister_device_route(device_id: str, user_id: str = Depends(get_current_user)) -> Any:
+    from app.repositories.device_repo import deregister_device
+    success = await deregister_device(device_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
+    return create_success_response(data={"deviceId": device_id}, message="기기 등록 해제 완료")
+
 @router.get("/{device_id}/status")
 async def read_device_status(device_id: str) -> Any:
     """Read current status of a device."""
