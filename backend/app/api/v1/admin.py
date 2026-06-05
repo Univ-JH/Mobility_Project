@@ -24,6 +24,11 @@ async def read_device_locations() -> Any:
     locations = await admin_service.get_active_locations()
     return create_success_response(data=[l.model_dump() for l in locations], message="위치 조회 성공")
 
+@router.get("/devices")
+async def read_device_list() -> Any:
+    devices = await admin_service.get_device_list()
+    return create_success_response(data=[d.model_dump() for d in devices], message="디바이스 목록 조회 성공")
+
 @router.get("/analytics/alerts-timeline")
 async def read_alerts_timeline() -> Any:
     timeline = await admin_service.get_alerts_timeline()
@@ -38,9 +43,10 @@ async def read_environment_stats() -> Any:
 async def read_events(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    severity: Optional[str] = Query(None)
+    severity: Optional[str] = Query(None),
+    deviceId: Optional[str] = Query(None)
 ) -> Any:
-    paginated_events = await admin_service.get_event_logs(page, size, severity)
+    paginated_events = await admin_service.get_event_logs(page, size, severity, deviceId)
     return create_success_response(data=paginated_events.model_dump(), message="이벤트 로그 조회 성공")
 
 @router.get("/export/logs")
