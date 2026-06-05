@@ -49,6 +49,17 @@ async def process_telemetry(data: TelemetryPayload):
             road_type=road_type,
         )
 
+    from app.services.ws_manager import ws_manager
+    await ws_manager.broadcast(data.deviceId, {
+        "type": "telemetry_update",
+        "deviceId": data.deviceId,
+        "speedKph": speed_kph,
+        "roadType": road_type,
+        "helmetWorn": helmet_worn,
+        "bleConnected": ble_connected,
+        "timestamp": data.timestamp.isoformat(),
+    })
+
     from app.services.policy_engine import evaluate_telemetry_policy
     await evaluate_telemetry_policy(data)
 
@@ -60,7 +71,16 @@ async def process_event(data: EventPayload):
     
     if event_doc:
         print(f"[Event Ingested] {data.deviceId} -> {data.eventType} (seq {data.seq})")
-        # Evaluate Policies only if the event is newly ingested
+        from app.services.ws_manager import ws_manager
+        await ws_manager.broadcast(data.deviceId, {
+            "type": "event_notification",
+            "deviceId": data.deviceId,
+            "eventType": data.eventType,
+            "severity": data.severity,
+            "reason": data.reason,
+            "confidence": data.confidence,
+            "timestamp": data.timestamp.isoformat(),
+        })
         from app.services.policy_engine import evaluate_event_policy
         await evaluate_event_policy(data)
     else:
