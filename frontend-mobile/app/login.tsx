@@ -21,7 +21,7 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password.trim());
       router.replace('/(tabs)');
     } catch {
       Alert.alert('로그인 실패', '이메일 또는 비밀번호를 확인해 주세요.');
