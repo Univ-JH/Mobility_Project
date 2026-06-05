@@ -40,6 +40,15 @@ export interface ActiveEmergencies {
   emergencies: EmergencyItem[];
 }
 
+export interface MyDevice {
+  deviceId: string;
+  deviceType: string;
+  currentState: string;
+  bleConnected: boolean;
+  helmetWorn: boolean;
+  lastSeenAt: string | null;
+}
+
 export const userApi = {
   getProfile: () => 
     axiosInstance.get<any, BaseResponse<UserProfile>>('/users/profile'),
@@ -61,4 +70,13 @@ export const userApi = {
 
   acknowledgeEmergency: (emergencyId: string, status: 'false_alarm' | 'resolved') =>
     axiosInstance.patch<any, BaseResponse<any>>(`/emergencies/${emergencyId}/status`, { status }),
+
+  getMyDevices: () =>
+    axiosInstance.get<any, BaseResponse<MyDevice[]>>('/devices'),
+
+  registerDevice: (deviceId: string, deviceType: string) =>
+    axiosInstance.post<any, BaseResponse<{ deviceId: string }>>('/devices/pair', { deviceId, deviceType }),
+
+  deregisterDevice: (deviceId: string) =>
+    axiosInstance.delete<any, BaseResponse<{ deviceId: string }>>(`/devices/${deviceId}`),
 };

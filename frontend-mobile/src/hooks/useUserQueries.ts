@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { userApi } from '../api/userApi';
+import { userApi, type MyDevice } from '../api/userApi';
 
 export const useUserProfile = () => {
   return useQuery({
@@ -20,5 +20,16 @@ export const useRideHistory = () => {
       return res.data.history;
     },
     staleTime: 2 * 60 * 1000, // 2 min — new rides appear after sessions end
+  });
+};
+
+export const useMyDevices = () => {
+  return useQuery({
+    queryKey: ['myDevices'],
+    queryFn: async () => {
+      const res = await userApi.getMyDevices();
+      return res.data as MyDevice[];
+    },
+    staleTime: 30_000,
   });
 };
