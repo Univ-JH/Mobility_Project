@@ -18,17 +18,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    AsyncStorage.getItem(TOKEN_KEY).then((stored) => {
-      if (stored) {
-        setToken(stored);
-        setAuthToken(stored);
-      }
-      setIsLoading(false);
-    });
+    AsyncStorage.getItem(TOKEN_KEY)
+      .then((stored) => {
+        if (stored) {
+          setToken(stored);
+          setAuthToken(stored);
+        }
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await axiosInstance.post('/auth/login', { email, password }) as any;
+    const res = await axiosInstance.post<never, { data: { accessToken: string } }>('/auth/login', { email, password });
     const t: string = res.data.accessToken;
     await AsyncStorage.setItem(TOKEN_KEY, t);
     setToken(t);
