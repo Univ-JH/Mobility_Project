@@ -34,6 +34,8 @@ class Device(Document):
     lastSeenAt: Optional[datetime] = None
     helmetWorn: bool = False
     bleConnected: bool = False
+    speedKph: float = 0.0
+    currentRoadType: str = "unknown"
     currentPolicyVersion: int = 1
     lastLocation: Optional[Location] = None
     

@@ -26,12 +26,21 @@ async def create_or_update_device(dto: DeviceCreate) -> Device:
     await new_device.insert()
     return new_device
 
-async def update_device_status(device_id: str, state: DeviceState, helmet_worn: bool, ble_connected: bool, event_timestamp: datetime, lat: float = 0.0, lng: float = 0.0):
+async def update_device_status(
+    device_id: str,
+    state: DeviceState,
+    helmet_worn: bool,
+    ble_connected: bool,
+    event_timestamp: datetime,
+    lat: float = 0.0,
+    lng: float = 0.0,
+    speed_kph: float = 0.0,
+    road_type: str = "unknown",
+) -> Optional[Device]:
     device = await get_device(device_id)
     if not device:
         return None
-        
-    # 최신 이벤트인지 확인 후 덮어쓰기 (순서 역전 방지)
+
     last_seen = device.lastSeenAt
     if last_seen and last_seen.tzinfo is None:
         last_seen = last_seen.replace(tzinfo=timezone.utc)
@@ -39,13 +48,15 @@ async def update_device_status(device_id: str, state: DeviceState, helmet_worn: 
         device.currentState = state
         device.helmetWorn = helmet_worn
         device.bleConnected = ble_connected
+        device.speedKph = speed_kph
+        device.currentRoadType = road_type
         device.lastSeenAt = event_timestamp
         device.updatedAt = datetime.now(timezone.utc)
-        
+
         if lat != 0.0 or lng != 0.0:
             from app.repositories.models import Location
             device.lastLocation = Location(lat=lat, lng=lng)
-            
+
         await device.save()
 
     return device

@@ -29,7 +29,9 @@ async def handle_mqtt_message(topic: str, payload: Dict[str, Any]):
 async def process_telemetry(data: TelemetryPayload):
     helmet_worn = data.helmet.worn if data.helmet else False
     ble_connected = data.health.bleConnected if data.health else False
-    
+    speed_kph = data.speedKph or 0.0
+    road_type = data.vision.surfaceClass if data.vision else "unknown"
+
     from app.repositories.device_repo import get_device
     device = await get_device(data.deviceId)
     if not device:
@@ -37,15 +39,16 @@ async def process_telemetry(data: TelemetryPayload):
     else:
         await update_device_status(
             device_id=data.deviceId,
-            state=device.currentState,  # Keep current
+            state=device.currentState,
             helmet_worn=helmet_worn,
             ble_connected=ble_connected,
             event_timestamp=data.timestamp,
             lat=data.latitude or 0.0,
-            lng=data.longitude or 0.0
+            lng=data.longitude or 0.0,
+            speed_kph=speed_kph,
+            road_type=road_type,
         )
-        
-    # Evaluate Policies
+
     from app.services.policy_engine import evaluate_telemetry_policy
     await evaluate_telemetry_policy(data)
 
