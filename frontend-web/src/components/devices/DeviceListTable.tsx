@@ -16,9 +16,21 @@ const STATE_COLORS: Record<string, string> = {
   READY: 'var(--text-muted)',
 };
 
+const STATE_BG_COLORS: Record<string, string> = {
+  RUNNING_NORMAL: 'rgba(16, 185, 129, 0.13)',
+  RUNNING_LIMITED: 'rgba(234, 179, 8, 0.13)',
+  AUTO_BRAKING: 'rgba(249, 115, 22, 0.13)',
+  EMERGENCY: 'rgba(239, 68, 68, 0.13)',
+  IDLE: 'rgba(139, 155, 180, 0.13)',
+  READY: 'rgba(139, 155, 180, 0.13)',
+};
+
 function relativeTime(isoStr: string | null): string {
   if (!isoStr) return '알 수 없음';
-  const diff = Date.now() - new Date(isoStr).getTime();
+  const date = new Date(isoStr);
+  if (isNaN(date.getTime())) return '알 수 없음';
+  const diff = Date.now() - date.getTime();
+  if (diff < 0) return '방금 전';
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return '방금 전';
   if (mins < 60) return `${mins}분 전`;
@@ -76,7 +88,7 @@ export const DeviceListTable: React.FC<Props> = ({ devices, onSelect, isLoading 
                 <span style={{
                   display: 'inline-block', padding: '0.25rem 0.6rem', borderRadius: '12px',
                   fontSize: '0.75rem', fontWeight: 600,
-                  background: `${STATE_COLORS[device.currentState] ?? 'var(--text-muted)'}22`,
+                  background: STATE_BG_COLORS[device.currentState] ?? 'rgba(139, 155, 180, 0.13)',
                   color: STATE_COLORS[device.currentState] ?? 'var(--text-muted)',
                 }}>
                   {device.currentState}
