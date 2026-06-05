@@ -54,3 +54,26 @@ export const useEventLogs = (page: number, size: number, severity?: string) => {
     },
   });
 };
+
+export const useDeviceList = () => {
+  return useQuery({
+    queryKey: ['deviceList'],
+    queryFn: async () => {
+      const res = await adminApi.getDeviceList();
+      return res.data;
+    },
+    refetchInterval: 30000,
+  });
+};
+
+export const useDeviceEvents = (deviceId: string) => {
+  return useQuery({
+    queryKey: ['deviceEvents', deviceId],
+    queryFn: async () => {
+      const res = await adminApi.getEvents(1, 10, undefined, deviceId);
+      return res.data.items;
+    },
+    enabled: !!deviceId,
+    refetchInterval: false,
+  });
+};
