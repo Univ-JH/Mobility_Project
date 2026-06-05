@@ -105,7 +105,7 @@ async def unlock_device(
     
     # Optimistically set state to READY/RUNNING
     device.currentState = DeviceState.READY
-    if request.lat and request.lng:
+    if request.lat is not None and request.lng is not None:
         from app.repositories.models import Location
         device.lastLocation = Location(lat=request.lat, lng=request.lng)
     await device.save()

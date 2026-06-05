@@ -41,6 +41,8 @@ async def update_device_status(
     if not device:
         return None
 
+    if event_timestamp.tzinfo is None:
+        event_timestamp = event_timestamp.replace(tzinfo=timezone.utc)
     last_seen = device.lastSeenAt
     if last_seen and last_seen.tzinfo is None:
         last_seen = last_seen.replace(tzinfo=timezone.utc)
