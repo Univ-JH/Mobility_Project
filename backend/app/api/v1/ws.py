@@ -14,7 +14,5 @@ async def device_telemetry_ws(device_id: str, websocket: WebSocket) -> None:
     try:
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
-        ws_manager.disconnect(device_id, websocket)
-    except Exception:
+    finally:
         ws_manager.disconnect(device_id, websocket)
