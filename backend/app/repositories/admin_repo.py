@@ -91,10 +91,12 @@ async def get_environment_stats() -> Dict[str, float]:
         "roadRatio": counts["road"] / total * 100
     }
 
-async def get_paginated_events(page: int, size: int, severity: Optional[str] = None) -> Tuple[List[Event], int]:
+async def get_paginated_events(page: int, size: int, severity: Optional[str] = None, device_id: Optional[str] = None) -> Tuple[List[Event], int]:
     query = Event.find()
     if severity:
         query = query.find(Event.severity == severity)
+    if device_id:
+        query = query.find(Event.deviceId == device_id)
         
     total_count = await query.count()
     items = await query.sort(-Event.eventAt).skip((page - 1) * size).limit(size).to_list()
@@ -103,3 +105,6 @@ async def get_paginated_events(page: int, size: int, severity: Optional[str] = N
 
 async def get_all_events_for_export() -> List[Event]:
     return await Event.find().sort(-Event.eventAt).to_list()
+
+async def get_all_devices() -> List[Device]:
+    return await Device.find().sort(-Device.lastSeenAt).to_list()
