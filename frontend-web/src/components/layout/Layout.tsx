@@ -9,12 +9,12 @@ export const Layout: React.FC = () => {
       <main className="main-content">
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.8rem', margin: 0 }}>Overview</h1>
-            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Monitor mobility safety in real-time.</p>
+            <h1 style={{ fontSize: '1.8rem', margin: 0 }}>개요</h1>
+            <p style={{ color: 'var(--text-muted)', margin: 0 }}>모빌리티 안전을 실시간으로 모니터링합니다.</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{ background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: '20px', border: 'var(--glass-border)', fontSize: '0.875rem' }}>
-              <span style={{ color: 'var(--accent-success)', marginRight: '0.5rem' }}>●</span> System Online
+              <span style={{ color: 'var(--accent-success)', marginRight: '0.5rem' }}>●</span> 시스템 정상
             </div>
             <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
               A

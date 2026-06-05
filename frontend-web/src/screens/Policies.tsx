@@ -40,27 +40,27 @@ export const Policies: React.FC = () => {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div>로딩 중...</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <Settings size={28} color="var(--accent-primary)" />
-        <h1 style={{ fontSize: '1.75rem', margin: 0 }}>Safety Policies</h1>
+        <h1 style={{ fontSize: '1.75rem', margin: 0 }}>안전 정책</h1>
       </div>
 
       <div className="glass-panel" style={{ padding: '2rem', maxWidth: '600px' }}>
         <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <AlertCircle size={20} color="var(--accent-secondary)" />
-          Active Policy Settings
+          활성 정책 설정
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Policy Name</label>
-            <input 
-              type="text" 
-              value={policy?.name || ''} 
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>정책 이름</label>
+            <input
+              type="text"
+              value={policy?.name || ''}
               onChange={e => setPolicy({...policy, name: e.target.value})}
               style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
             />
@@ -68,49 +68,49 @@ export const Policies: React.FC = () => {
 
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>
-              <input 
-                type="checkbox" 
-                checked={policy?.helmetRequired || false} 
+              <input
+                type="checkbox"
+                checked={policy?.helmetRequired || false}
                 onChange={e => setPolicy({...policy, helmetRequired: e.target.checked})}
                 style={{ width: '18px', height: '18px' }}
               />
-              Helmet Required for Riding
+              주행 시 헬멧 착용 필수
             </label>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>If checked, devices will lock if helmet is removed.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>헬멧을 벗으면 디바이스가 잠깁니다.</p>
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Max Speed Limit (km/h)</label>
-            <input 
-              type="number" 
-              value={policy?.maxSpeedKph || 25} 
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>최대 속도 제한 (km/h)</label>
+            <input
+              type="number"
+              value={policy?.maxSpeedKph || 25}
               onChange={e => setPolicy({...policy, maxSpeedKph: parseFloat(e.target.value)})}
               style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Sidewalk Auto-Brake Level (1-3)</label>
-            <input 
-              type="number" 
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>인도 자동 제동 레벨 (1-3)</label>
+            <input
+              type="number"
               min="1" max="3"
-              value={policy?.sidewalkBrakeLevel || 2} 
+              value={policy?.sidewalkBrakeLevel || 2}
               onChange={e => setPolicy({...policy, sidewalkBrakeLevel: parseInt(e.target.value)})}
               style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
             />
           </div>
 
-          <button 
-            onClick={handleSave} 
+          <button
+            onClick={handleSave}
             disabled={saving}
-            style={{ 
-              marginTop: '1rem', padding: '1rem', borderRadius: '8px', border: 'none', 
-              background: 'var(--accent-primary)', color: 'white', fontWeight: 600, 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer' 
+            style={{
+              marginTop: '1rem', padding: '1rem', borderRadius: '8px', border: 'none',
+              background: 'var(--accent-primary)', color: 'white', fontWeight: 600,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer'
             }}
           >
             <Save size={20} />
-            {saving ? 'Saving...' : 'Save & Deploy Policy'}
+            {saving ? '저장 중...' : '저장 및 정책 배포'}
           </button>
         </div>
       </div>

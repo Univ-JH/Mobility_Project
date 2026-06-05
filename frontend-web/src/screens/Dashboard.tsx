@@ -14,7 +14,7 @@ export const Dashboard: React.FC = () => {
   const { data: devices, isLoading: devicesLoading } = useDeviceList();
   const [selectedDevice, setSelectedDevice] = useState<DeviceListItem | null>(null);
 
-  if (statsLoading) return <div>Loading dashboard data...</div>;
+  if (statsLoading) return <div>대시보드 데이터 로딩 중...</div>;
 
   const pieData = envStats ? [
     { name: 'Sidewalk', value: envStats.sidewalkRatio },
@@ -28,23 +28,23 @@ export const Dashboard: React.FC = () => {
       {/* Top Stats Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
         <StatCard 
-          title="Active Devices" 
+          title="활성 디바이스"
           value={stats?.activeDevices || 0} 
           icon={<Activity size={20} color="var(--accent-primary)" />} 
-          trend="+12% today" isPositive={true}
+          trend="+12% 오늘" isPositive={true}
         />
         <StatCard 
-          title="Emergencies Today" 
+          title="오늘 응급 알림"
           value={stats?.emergenciesToday || 0} 
           icon={<AlertTriangle size={20} color="var(--accent-critical)" />} 
         />
         <StatCard 
-          title="Helmet Compliance" 
+          title="헬멧 착용률"
           value={`${(stats?.helmetCompliance || 0).toFixed(1)}%`} 
           icon={<ShieldCheck size={20} color="var(--accent-secondary)" />} 
         />
         <StatCard 
-          title="Avg Battery" 
+          title="평균 배터리"
           value={`${(stats?.avgBattery || 0).toFixed(1)}%`} 
           icon={<Battery size={20} color="var(--accent-success)" />} 
         />
@@ -54,7 +54,7 @@ export const Dashboard: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', height: '400px' }}>
         {/* Timeline Chart */}
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>Alerts Timeline (24h)</h3>
+          <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>알림 타임라인 (24시간)</h3>
           <div style={{ flex: 1, minHeight: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={timeline || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -78,7 +78,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Environment Chart */}
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-          <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>Surface Environment</h3>
+          <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>주행 환경 분포</h3>
           <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -98,7 +98,7 @@ export const Dashboard: React.FC = () => {
               <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold' }}>
                 {envStats ? (envStats.sidewalkRatio).toFixed(0) : 0}%
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--accent-critical)' }}>Sidewalk</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-critical)' }}>인도</span>
             </div>
           </div>
         </div>

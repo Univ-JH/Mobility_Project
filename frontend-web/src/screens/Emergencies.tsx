@@ -28,7 +28,7 @@ export const Emergencies: React.FC = () => {
       await adminApi.ackEmergency(caseId);
       fetchEmergencies();
     } catch (err) {
-      alert('Failed to ACK emergency');
+      alert('응급 알림 확인에 실패했습니다.');
     }
   };
 
@@ -39,21 +39,21 @@ export const Emergencies: React.FC = () => {
     try {
       await adminApi.resolveEmergency(caseId, {
         resolutionType: 'OPERATOR_RESOLVED',
-        note: note || 'Resolved by operator'
+        note: note || '운영자 처리 완료'
       });
       fetchEmergencies();
     } catch (err) {
-      alert('Failed to RESOLVE emergency');
+      alert('응급 알림 처리에 실패했습니다.');
     }
   };
 
-  if (loading) return <div>Loading emergencies...</div>;
+  if (loading) return <div>응급 알림 로딩 중...</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         <AlertOctagon size={28} color="var(--accent-critical)" />
-        <h1 style={{ fontSize: '1.75rem', margin: 0 }}>Active Emergencies</h1>
+        <h1 style={{ fontSize: '1.75rem', margin: 0 }}>활성 응급 알림</h1>
       </div>
 
       {emergencies.length === 0 ? (
@@ -74,10 +74,10 @@ export const Emergencies: React.FC = () => {
                   }}>
                     {em.status}
                   </span>
-                  <span style={{ fontWeight: 600 }}>Device: {em.deviceId}</span>
+                  <span style={{ fontWeight: 600 }}>디바이스: {em.deviceId}</span>
                 </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                  Opened At: {new Date(em.openedAt).toLocaleString()}
+                  발생 시각: {new Date(em.openedAt).toLocaleString('ko-KR')}
                 </div>
               </div>
               

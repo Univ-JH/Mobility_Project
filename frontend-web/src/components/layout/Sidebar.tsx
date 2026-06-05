@@ -23,7 +23,7 @@ export const Sidebar: React.FC = () => {
           })}
         >
           <LayoutDashboard size={20} />
-          <span>Dashboard</span>
+          <span>대시보드</span>
         </NavLink>
         
         <NavLink 
@@ -38,7 +38,7 @@ export const Sidebar: React.FC = () => {
           })}
         >
           <Map size={20} />
-          <span>Live Map</span>
+          <span>실시간 지도</span>
         </NavLink>
         
         <NavLink 
@@ -53,7 +53,7 @@ export const Sidebar: React.FC = () => {
           })}
         >
           <List size={20} />
-          <span>Event Logs</span>
+          <span>이벤트 로그</span>
         </NavLink>
         <NavLink 
           to="/policies" 
@@ -67,7 +67,7 @@ export const Sidebar: React.FC = () => {
           })}
         >
           <ShieldAlert size={20} />
-          <span>Policies</span>
+          <span>정책 설정</span>
         </NavLink>
 
         <NavLink 
@@ -82,7 +82,7 @@ export const Sidebar: React.FC = () => {
           })}
         >
           <ShieldAlert size={20} />
-          <span>Emergencies</span>
+          <span>응급 알림</span>
         </NavLink>
       </nav>
     </div>

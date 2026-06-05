@@ -21,16 +21,16 @@ export const LiveMap: React.FC = () => {
   return (
     <div className="glass-panel" style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Live Device Map</h2>
+        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>실시간 디바이스 지도</h2>
         <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-          {locations?.length || 0} active devices
+          활성 디바이스 {locations?.length || 0}대
         </span>
       </div>
       
       <div style={{ flex: 1, borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
         {isLoading ? (
           <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-            Loading map data...
+            지도 데이터 로딩 중...
           </div>
         ) : (
           <MapContainer center={defaultCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
@@ -42,7 +42,7 @@ export const LiveMap: React.FC = () => {
               <Marker key={loc.deviceId} position={[loc.lat, loc.lng]}>
                 <Popup>
                   <strong>{loc.deviceId}</strong><br />
-                  State: {loc.state}
+                  상태: {loc.state}
                 </Popup>
               </Marker>
             ))}

@@ -36,9 +36,9 @@ export const EventLogs: React.FC = () => {
   return (
     <div className="glass-panel" style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>System Event Logs</h2>
+        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>시스템 이벤트 로그</h2>
         <button className="btn-primary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Download size={16} /> Export CSV
+          <Download size={16} /> CSV 내보내기
         </button>
       </div>
 
@@ -46,18 +46,18 @@ export const EventLogs: React.FC = () => {
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
-              <th style={{ padding: '1rem', fontWeight: 500 }}>Time</th>
-              <th style={{ padding: '1rem', fontWeight: 500 }}>Device ID</th>
-              <th style={{ padding: '1rem', fontWeight: 500 }}>Event Type</th>
-              <th style={{ padding: '1rem', fontWeight: 500 }}>Severity</th>
-              <th style={{ padding: '1rem', fontWeight: 500 }}>Reason</th>
+              <th style={{ padding: '1rem', fontWeight: 500 }}>시간</th>
+              <th style={{ padding: '1rem', fontWeight: 500 }}>디바이스 ID</th>
+              <th style={{ padding: '1rem', fontWeight: 500 }}>이벤트 유형</th>
+              <th style={{ padding: '1rem', fontWeight: 500 }}>심각도</th>
+              <th style={{ padding: '1rem', fontWeight: 500 }}>사유</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center' }}>Loading logs...</td></tr>
+              <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center' }}>로그 로딩 중...</td></tr>
             ) : data?.items.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center' }}>No events found.</td></tr>
+              <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center' }}>이벤트가 없습니다.</td></tr>
             ) : (
               data?.items.map(log => (
                 <tr key={log.eventId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -90,7 +90,7 @@ export const EventLogs: React.FC = () => {
       {/* Pagination Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-          Showing page {data?.page || 1} of {Math.ceil((data?.totalCount || 0) / size)} (Total: {data?.totalCount || 0})
+          {data?.page || 1} / {Math.ceil((data?.totalCount || 0) / size)} 페이지 (전체: {data?.totalCount || 0}건)
         </span>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button 
@@ -98,14 +98,14 @@ export const EventLogs: React.FC = () => {
             onClick={() => setPage(p => Math.max(1, p - 1))}
             style={{ background: 'var(--bg-dark)', border: 'var(--glass-border)', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', cursor: page === 1 ? 'not-allowed' : 'pointer' }}
           >
-            Prev
+            이전
           </button>
-          <button 
-            disabled={!data || data.items.length < size} 
+          <button
+            disabled={!data || data.items.length < size}
             onClick={() => setPage(p => p + 1)}
             style={{ background: 'var(--bg-dark)', border: 'var(--glass-border)', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', cursor: (!data || data.items.length < size) ? 'not-allowed' : 'pointer' }}
           >
-            Next
+            다음
           </button>
         </div>
       </div>
