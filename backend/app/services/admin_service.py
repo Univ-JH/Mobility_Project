@@ -4,7 +4,8 @@ from typing import Optional
 from app.repositories import admin_repo
 from app.schemas.admin_dto import (
     AdminStatsResponse, DeviceLocationDto, AlertsTimelineResponse,
-    AlertsTimelineBucket, EnvironmentStatsResponse, EventLogPaginatedResponse, EventLogDto
+    AlertsTimelineBucket, EnvironmentStatsResponse, EventLogPaginatedResponse, EventLogDto,
+    DeviceListItemDto, LocationDto
 )
 
 async def get_dashboard_stats() -> AdminStatsResponse:
@@ -24,6 +25,26 @@ async def get_active_locations() -> list[DeviceLocationDto]:
             ))
     return locations
 
+async def get_device_list() -> list[DeviceListItemDto]:
+    devices = await admin_repo.get_all_devices()
+    result = []
+    for d in devices:
+        location = None
+        if d.lastLocation:
+            location = LocationDto(lat=d.lastLocation.lat, lng=d.lastLocation.lng)
+        result.append(DeviceListItemDto(
+            deviceId=d.deviceId,
+            deviceType=d.deviceType,
+            currentState=d.currentState.value,
+            lastSeenAt=d.lastSeenAt,
+            helmetWorn=d.helmetWorn,
+            bleConnected=d.bleConnected,
+            lastLocation=location,
+            fwVersion=d.fwVersion,
+            currentPolicyVersion=d.currentPolicyVersion
+        ))
+    return result
+
 async def get_alerts_timeline() -> AlertsTimelineResponse:
     timeline_data = await admin_repo.get_alerts_timeline()
     buckets = [AlertsTimelineBucket(**bucket) for bucket in timeline_data]
@@ -33,8 +54,8 @@ async def get_environment_stats() -> EnvironmentStatsResponse:
     stats = await admin_repo.get_environment_stats()
     return EnvironmentStatsResponse(**stats)
 
-async def get_event_logs(page: int, size: int, severity: Optional[str]) -> EventLogPaginatedResponse:
-    items, total = await admin_repo.get_paginated_events(page, size, severity)
+async def get_event_logs(page: int, size: int, severity: Optional[str], device_id: Optional[str] = None) -> EventLogPaginatedResponse:
+    items, total = await admin_repo.get_paginated_events(page, size, severity, device_id)
     
     dto_items = []
     for item in items:

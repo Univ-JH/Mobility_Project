@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Activity, AlertTriangle, Battery, ShieldCheck } from 'lucide-react';
-import { useDashboardStats, useAlertsTimeline, useEnvironmentStats } from '../hooks/queries/useAdminQueries';
+import { useDashboardStats, useAlertsTimeline, useEnvironmentStats, useDeviceList } from '../hooks/queries/useAdminQueries';
 import { StatCard } from '../components/common/StatCard';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { DeviceListTable } from '../components/devices/DeviceListTable';
+import { DeviceDetailModal } from '../components/devices/DeviceDetailModal';
+import type { DeviceListItem } from '../api/adminApi';
 
 export const Dashboard: React.FC = () => {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: timeline } = useAlertsTimeline();
   const { data: envStats } = useEnvironmentStats();
+  const { data: devices, isLoading: devicesLoading } = useDeviceList();
+  const [selectedDevice, setSelectedDevice] = useState<DeviceListItem | null>(null);
 
   if (statsLoading) return <div>Loading dashboard data...</div>;
 
@@ -98,6 +103,18 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Device List */}
+      <div className="glass-panel" style={{ padding: '1.5rem' }}>
+        <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>디바이스 목록</h3>
+        <DeviceListTable
+          devices={devices ?? []}
+          onSelect={(device: DeviceListItem) => setSelectedDevice(device)}
+          isLoading={devicesLoading}
+        />
+      </div>
+
+      <DeviceDetailModal device={selectedDevice} onClose={() => setSelectedDevice(null)} />
     </div>
   );
 };

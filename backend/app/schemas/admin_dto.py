@@ -39,3 +39,18 @@ class EventLogPaginatedResponse(BaseModel):
     totalCount: int
     page: int
     size: int
+
+class LocationDto(BaseModel):
+    lat: float
+    lng: float
+
+class DeviceListItemDto(BaseModel):
+    deviceId: str
+    deviceType: str
+    currentState: str
+    lastSeenAt: Optional[datetime]
+    helmetWorn: bool
+    bleConnected: bool
+    lastLocation: Optional[LocationDto]
+    fwVersion: str
+    currentPolicyVersion: int

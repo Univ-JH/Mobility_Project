@@ -36,6 +36,23 @@ export interface EnvironmentStats {
   roadRatio: number;
 }
 
+export interface DeviceLocation {
+  lat: number;
+  lng: number;
+}
+
+export interface DeviceListItem {
+  deviceId: string;
+  deviceType: string;
+  currentState: string;
+  lastSeenAt: string | null;
+  helmetWorn: boolean;
+  bleConnected: boolean;
+  lastLocation: DeviceLocation | null;
+  fwVersion: string;
+  currentPolicyVersion: number;
+}
+
 export interface EventLog {
   eventId: string;
   deviceId: string;
@@ -62,9 +79,13 @@ export const adminApi = {
   
   getEnvironment: () => axiosInstance.get<any, BaseResponse<EnvironmentStats>>('/admin/analytics/environment'),
   
-  getEvents: (page: number = 1, size: number = 20, severity?: string) => {
+  getDeviceList: () =>
+    axiosInstance.get<any, BaseResponse<DeviceListItem[]>>('/admin/devices'),
+
+  getEvents: (page: number = 1, size: number = 20, severity?: string, deviceId?: string) => {
     let url = `/admin/events?page=${page}&size=${size}`;
     if (severity) url += `&severity=${severity}`;
+    if (deviceId) url += `&deviceId=${deviceId}`;
     return axiosInstance.get<any, BaseResponse<PaginatedEvents>>(url);
   },
   
