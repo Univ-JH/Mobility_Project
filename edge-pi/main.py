@@ -55,6 +55,7 @@ class SmartBikeSystem:
             "distance_cm": self.sonar.get_distance(),
             "rear_approach": self.radar.check_rear_approach(),
             "surface_class": self.vision.get_surface_type(),
+            "confidence": self.vision.get_surface_confidence(),
             "speed": loc_data.get("speed", 0.0),
             "lat": loc_data.get("lat", 0.0),
             "lon": loc_data.get("lon", 0.0),

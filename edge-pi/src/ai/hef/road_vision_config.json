@@ -1,0 +1,34 @@
+{
+    "model": {
+        "hef_path": "src/ai/hef/best.hef",
+        "num_classes": 2,
+        "road_class_id": 0,
+        "sidewalk_class_id": 1,
+        "confidence_threshold": 0.40,
+        "nms_threshold": 0.50
+    },
+    "camera": {
+        "use_picamera2": true,
+        "capture_width": 1280,
+        "capture_height": 720,
+        "framerate": 30
+    },
+    "roi": {
+        "x_ratio": [0.3, 0.7],
+        "y_ratio": [0.6, 1.0]
+    },
+    "stabilization": {
+        "window_size": 7,
+        "sidewalk_trigger_ratio": 0.5,
+        "unknown_as_sidewalk": true
+    },
+    "udp": {
+        "host": "127.0.0.1",
+        "port": 5005
+    },
+    "display": {
+        "enabled": true,
+        "window_name": "Road Vision - Smart Mobility",
+        "alpha_blend": 0.45
+    }
+}
