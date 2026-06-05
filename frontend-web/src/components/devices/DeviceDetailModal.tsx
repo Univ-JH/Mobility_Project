@@ -2,29 +2,12 @@ import React from 'react';
 import { X } from 'lucide-react';
 import type { DeviceListItem } from '../../api/adminApi';
 import { useDeviceEvents } from '../../hooks/queries/useAdminQueries';
+import { STATE_COLORS, STATE_BG_COLORS } from '../../utils/deviceStateColors';
 
 interface Props {
   device: DeviceListItem | null;
   onClose: () => void;
 }
-
-const STATE_COLORS: Record<string, string> = {
-  RUNNING_NORMAL: 'var(--accent-success)',
-  RUNNING_LIMITED: '#eab308',
-  AUTO_BRAKING: '#f97316',
-  EMERGENCY: 'var(--accent-critical)',
-  IDLE: 'var(--text-muted)',
-  READY: 'var(--text-muted)',
-};
-
-const STATE_BG_COLORS: Record<string, string> = {
-  RUNNING_NORMAL: 'rgba(16, 185, 129, 0.13)',
-  RUNNING_LIMITED: 'rgba(234, 179, 8, 0.13)',
-  AUTO_BRAKING: 'rgba(249, 115, 22, 0.13)',
-  EMERGENCY: 'rgba(239, 68, 68, 0.13)',
-  IDLE: 'rgba(139, 155, 180, 0.13)',
-  READY: 'rgba(139, 155, 180, 0.13)',
-};
 
 const SEVERITY_COLORS: Record<string, string> = {
   high: 'var(--accent-critical)',
@@ -57,8 +40,15 @@ export const DeviceDetailModal: React.FC<Props> = ({ device, onClose }) => {
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="glass-panel"
-        style={{ width: '100%', maxWidth: '720px', maxHeight: '80vh', overflowY: 'auto', padding: '2rem' }}
+        style={{
+          width: '100%', maxWidth: '720px', maxHeight: '80vh', overflowY: 'auto', padding: '2rem',
+          background: 'var(--bg-card)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: 'var(--glass-border)',
+          borderRadius: '16px',
+          boxShadow: 'var(--glass-shadow)',
+        }}
       >
         {/* 헤더 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>

@@ -1,29 +1,12 @@
 import React from 'react';
 import type { DeviceListItem } from '../../api/adminApi';
+import { STATE_COLORS, STATE_BG_COLORS } from '../../utils/deviceStateColors';
 
 interface Props {
   devices: DeviceListItem[];
   onSelect: (device: DeviceListItem) => void;
   isLoading: boolean;
 }
-
-const STATE_COLORS: Record<string, string> = {
-  RUNNING_NORMAL: 'var(--accent-success)',
-  RUNNING_LIMITED: '#eab308',
-  AUTO_BRAKING: '#f97316',
-  EMERGENCY: 'var(--accent-critical)',
-  IDLE: 'var(--text-muted)',
-  READY: 'var(--text-muted)',
-};
-
-const STATE_BG_COLORS: Record<string, string> = {
-  RUNNING_NORMAL: 'rgba(16, 185, 129, 0.13)',
-  RUNNING_LIMITED: 'rgba(234, 179, 8, 0.13)',
-  AUTO_BRAKING: 'rgba(249, 115, 22, 0.13)',
-  EMERGENCY: 'rgba(239, 68, 68, 0.13)',
-  IDLE: 'rgba(139, 155, 180, 0.13)',
-  READY: 'rgba(139, 155, 180, 0.13)',
-};
 
 function relativeTime(isoStr: string | null): string {
   if (!isoStr) return '알 수 없음';
