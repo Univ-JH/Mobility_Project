@@ -8,6 +8,7 @@ export const useUserProfile = () => {
       const res = await userApi.getProfile();
       return res.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 min — profile changes infrequently
   });
 };
 
@@ -18,5 +19,6 @@ export const useRideHistory = () => {
       const res = await userApi.getHistory();
       return res.data.history;
     },
+    staleTime: 2 * 60 * 1000, // 2 min — new rides appear after sessions end
   });
 };

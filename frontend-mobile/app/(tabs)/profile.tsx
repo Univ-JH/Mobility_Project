@@ -1,15 +1,23 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useUserProfile } from '../../src/hooks/useUserQueries';
-import { User, Mail, Shield } from 'lucide-react-native';
+import { User, Shield } from 'lucide-react-native';
 
 export default function ProfileScreen() {
-  const { data: profile, isLoading } = useUserProfile();
+  const { data: profile, isLoading, error } = useUserProfile();
 
   if (isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Failed to load profile.</Text>
       </View>
     );
   }
@@ -29,7 +37,9 @@ export default function ProfileScreen() {
           <Shield color="#10b981" size={24} />
           <Text style={styles.scoreTitle}>Safety Score</Text>
         </View>
-        <Text style={styles.scoreValue}>{profile?.safetyScore.toFixed(0)}</Text>
+        <Text style={styles.scoreValue}>
+          {profile?.safetyScore != null ? profile.safetyScore.toFixed(0) : '-'}
+        </Text>
         <Text style={styles.scoreDesc}>Excellent! You are in the top 10% of safe riders.</Text>
       </View>
     </View>
@@ -103,5 +113,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#64748b',
     fontSize: 14,
-  }
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 16,
+  },
 });

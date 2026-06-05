@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { userApi } from '../api/userApi';
+import type { AxiosError } from 'axios';
+import { userApi, type BaseResponse } from '../api/userApi';
 import { Alert } from 'react-native';
+
+type ApiError = AxiosError<BaseResponse<unknown>>;
 
 export const usePairDevice = () => {
   const queryClient = useQueryClient();
@@ -12,8 +15,8 @@ export const usePairDevice = () => {
       // Invalidate queries or update local state
       Alert.alert('Success', 'Device paired successfully');
     },
-    onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to pair device');
+    onError: (error: ApiError) => {
+      Alert.alert('Error', error.response?.data?.message ?? 'Failed to pair device');
     }
   });
 };
@@ -25,8 +28,8 @@ export const useUnlockDevice = () => {
     onSuccess: () => {
       Alert.alert('Success', 'Unlock command sent to device');
     },
-    onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to unlock device');
+    onError: (error: ApiError) => {
+      Alert.alert('Error', error.response?.data?.message ?? 'Failed to unlock device');
     }
   });
 };
@@ -38,7 +41,7 @@ export const useTriggerEmergency = () => {
     onSuccess: () => {
       Alert.alert('SOS Sent', 'Emergency services and contacts have been notified.');
     },
-    onError: (error: any) => {
+    onError: (error: ApiError) => {
       Alert.alert('SOS Failed', 'Could not reach the server. Please call emergency services directly.');
     }
   });

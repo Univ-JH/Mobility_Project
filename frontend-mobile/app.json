@@ -45,7 +45,13 @@
           "ios": {
             "infoPlist": {
               "NSAppTransportSecurity": {
-                "NSAllowsArbitraryLoads": true
+                "NSAllowsArbitraryLoads": false,
+                "NSExceptionDomains": {
+                  "52.79.242.44": {
+                    "NSExceptionAllowsInsecureHTTPLoads": true,
+                    "NSIncludesSubdomains": false
+                  }
+                }
               }
             }
           },

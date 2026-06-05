@@ -33,7 +33,7 @@ export default function DashboardScreen() {
           onPress: async () => {
             setEmergency(false);
             try {
-              userApi.triggerEmergency("User requested SOS from Mobile Prototype", 37.5665, 126.9780);
+              await userApi.triggerEmergency("User requested SOS from Mobile Prototype", 37.5665, 126.9780);
               Alert.alert("SOS Sent", "Emergency contacts and admins have been notified.");
             } catch (e) {
               Alert.alert("Error", "Failed to send SOS.");

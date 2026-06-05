@@ -1,7 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Home, List, User } from 'lucide-react-native';
+import { useEmergencyPolling } from '../../src/hooks/useEmergencyPolling';
 
 export default function TabLayout() {
+  // Polls /emergencies while app is in foreground; triggers GlobalEmergencyOverlay on new server emergency
+  useEmergencyPolling();
+
   return (
     <Tabs screenOptions={{
       tabBarActiveTintColor: '#3b82f6',

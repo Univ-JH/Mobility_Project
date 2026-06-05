@@ -12,7 +12,7 @@ export interface UserProfile {
   name: string;
   email: string;
   safetyScore: number;
-  appSettings: Record<string, any>;
+  appSettings: Record<string, unknown>;
 }
 
 export interface RideHistoryItem {
@@ -25,6 +25,19 @@ export interface RideHistoryItem {
 
 export interface RideHistory {
   history: RideHistoryItem[];
+}
+
+export type EmergencyStatus = 'open' | 'acked' | 'resolved' | 'false_alarm';
+
+export interface EmergencyItem {
+  id: string;
+  reason: string;
+  status: EmergencyStatus;
+  createdAt: string;
+}
+
+export interface ActiveEmergencies {
+  emergencies: EmergencyItem[];
 }
 
 export const userApi = {
@@ -40,6 +53,12 @@ export const userApi = {
   unlockDevice: (deviceId: string, lat?: number, lng?: number) => 
     axiosInstance.post<any, BaseResponse<any>>(`/devices/${deviceId}/unlock`, { lat, lng }),
     
-  triggerEmergency: (reason: string, lat?: number, lng?: number) => 
-    axiosInstance.post<any, BaseResponse<any>>('/events/emergency', { reason, lat, lng })
+  triggerEmergency: (reason: string, lat?: number, lng?: number) =>
+    axiosInstance.post<any, BaseResponse<any>>('/events/emergency', { reason, lat, lng }),
+
+  getActiveEmergencies: () =>
+    axiosInstance.get<any, BaseResponse<ActiveEmergencies>>('/emergencies?status=open&limit=10'),
+
+  acknowledgeEmergency: (emergencyId: string, status: 'false_alarm' | 'resolved') =>
+    axiosInstance.patch<any, BaseResponse<any>>(`/emergencies/${emergencyId}/status`, { status }),
 };

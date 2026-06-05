@@ -1,30 +1,23 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeButton } from '../../src/components/SafeButton';
-import { SOSModal } from '../../src/components/SOSModal';
-import { useUnlockDevice, useTriggerEmergency } from '../../src/hooks/useUserMutations';
+import { useUnlockDevice } from '../../src/hooks/useUserMutations';
+import { useEmergency } from '../../src/context/EmergencyContext';
 import { ShieldCheck, PlusCircle } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [sosVisible, setSosVisible] = useState(false);
-  
+  const { triggerSOS } = useEmergency();
+
   // For MVP, hardcoding device ID that user might have paired
-  const activeDevice = 'dev-001'; 
-  
+  const activeDevice = 'dev-001';
+
   const unlockMutation = useUnlockDevice();
-  const emergencyMutation = useTriggerEmergency();
 
   const handleUnlock = () => {
     // In real app, pass current GPS lat/lng
     unlockMutation.mutate({ deviceId: activeDevice });
-  };
-
-  const handleEmergencyConfirm = () => {
-    setSosVisible(false);
-    // In real app, pass current GPS lat/lng
-    emergencyMutation.mutate({ reason: 'User initiated SOS via Mobile App' });
   };
 
   return (
@@ -56,21 +49,15 @@ export default function HomeScreen() {
 
       <View style={{ flex: 1 }} />
 
-      {/* SOS Button at the bottom */}
+      {/* SOS Button at the bottom — GlobalEmergencyOverlay handles the modal */}
       <View style={styles.sosContainer}>
         <Text style={styles.sosWarning}>Only use in emergencies</Text>
-        <SafeButton 
-          title="EMERGENCY SOS" 
-          variant="danger" 
-          onPress={() => setSosVisible(true)}
+        <SafeButton
+          title="EMERGENCY SOS"
+          variant="danger"
+          onPress={() => triggerSOS({ reason: 'User initiated SOS via Mobile App' })}
         />
       </View>
-
-      <SOSModal 
-        visible={sosVisible} 
-        onCancel={() => setSosVisible(false)} 
-        onConfirm={handleEmergencyConfirm} 
-      />
     </ScrollView>
   );
 }
