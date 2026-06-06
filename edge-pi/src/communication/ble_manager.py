@@ -43,11 +43,11 @@ class HelmetBLEManager:
 
     def _event_notification_handler(self, sender, data):
         """[콜백 2] 아두이노 바이너리 구조체 패킷 풀기 (정확히 14바이트 수신)"""
-        # 데이터가 잘리거나 쓰레기 값이 붙어 들어왔을 때를 대비한 패딩 방어선
-        if len(data) < 14:
-            padded_data = data + b'\x00' * (14 - len(data))
-        else:
-            padded_data = data[:14]
+        # [FIX BUG-B] 크기 불일치 패킷 즉시 드롭 — 0패딩 파싱 시 쓰레기 데이터 ingestion 방지
+        if len(data) != 14:
+            print(f"⚠️ [BLE] 패킷 크기 오류: {len(data)}bytes (기대값 14bytes). 드롭.")
+            return
+        padded_data = data
 
         try:
             # 아두이노의 C++ 구조체 레이아웃 규격(<BIIIB) 그대로 언팩 수행
@@ -116,7 +116,14 @@ class HelmetBLEManager:
                     
                 except Exception as e:
                     print(f"⚠️ [BLE] 통신 레이어 초기화 실패 (재연결 대기): {e}")
+                    # [FIX BUG-A] connect 성공 후 start_notify 실패 시 zombie 연결 방지
+                    if self.client:
+                        try:
+                            await self.client.disconnect()
+                        except Exception:
+                            pass
                     self.is_connected = False
+                    self.last_helmet_id = "unknown"
                     await asyncio.sleep(5)
                     continue
             
@@ -128,7 +135,8 @@ class HelmetBLEManager:
                 self.last_parsed_data = {"seq": -1, "is_worn": False, "is_accident": False, "event_label": 0}
                 self.last_helmet_id = "unknown"
                 
-            await asyncio.sleep(1.0)
+            # [FIX BUG-C] 1.0s → 0.3s: 연결 단절 감지 지연 최소화
+            await asyncio.sleep(0.3)
 
     async def stop(self):
         """시스템 다운 시 통신 포트 및 구독 핸들러를 물리적으로 완전 반환"""

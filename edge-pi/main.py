@@ -184,21 +184,24 @@ class SmartBikeSystem:
         except asyncio.CancelledError:
             print("🛑 [시스템] 루프 강제 취소됨.")
         finally:
-            self.stop()
+            # [FIX BUG-D] async stop 호출 — ble.stop()이 async이므로 await 필요
+            await self.stop()
 
-    def stop(self):
+    async def stop(self):
         print("🧹 [시스템] 안전 종료 시퀀스 가동...")
         self.is_running = False
-        
-        self.brake.release_brake() 
+
+        self.brake.release_brake()
         self.brake.cleanup()
         self.sonar.cleanup()
         self.radar.cleanup()
-        
+
         self.location.stop()
         self.vision.stop()
         self.mqtt.stop()
-        
+        # [FIX BUG-D] BLE 연결 정상 종료 — 기존 동기 stop()에서 누락됨
+        await self.ble.stop()
+
         print("✅ [시스템] 완전히 종료되었습니다.")
 
 if __name__ == "__main__":
