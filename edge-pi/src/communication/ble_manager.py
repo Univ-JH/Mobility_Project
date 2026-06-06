@@ -1,5 +1,6 @@
 import asyncio
 import struct
+import time
 from bleak import BleakClient, BleakScanner
 
 # 통합 설정 파일에서 정밀 규격 변수들을 안전하게 가져옵니다.
@@ -23,8 +24,9 @@ class HelmetBLEManager:
         self.last_parsed_data = {
             "seq": -1,
             "is_worn": False,
-            "is_accident": False,  # 자전거 자체 충격 센서와 'OR' 연산될 핵심 변수
-            "event_label": 0       # 상세 사고 종류 기록용 (1~5)
+            "is_accident": False,       # 자전거 자체 충격 센서와 'OR' 연산될 핵심 변수
+            "event_label": 0,           # 상세 사고 종류 기록용 (1~5)
+            "accident_expires_at": 0.0, # [REMAIN-1] is_accident TTL: 이 시각 이후 자동 False
         }
         self.is_connected = False
         self.client = None
@@ -58,15 +60,21 @@ class HelmetBLEManager:
             # 아두이노의 C++ 구조체 레이아웃 규격(<BIIIB) 그대로 언팩 수행
             schema_ver, seq, timestamp, ride_id, event_label = struct.unpack(self.struct_format, padded_data)
             
-            # [판단 로직 정립] 
-            # 라벨 1(전도), 2(충돌), 3(급가속), 4(급정거)가 들어오면 메인 루프가 인지하도록 사고로 판별
-            # 5번(단순 이탈 의심)이나 0번(정상)일 경우는 일반 경고나 평시 상태로 분류
+            # 라벨 1(전도), 2(충돌), 3(급가속), 4(급정거) → 사고
+            # 5(이탈 의심), 0(정상) → 비사고
             is_accident = event_label in [1, 2, 3, 4]
-            
-            # 메인 지휘소가 읽어갈 수 있도록 딕셔너리 원자적 업데이트
-            self.last_parsed_data["seq"] = seq
-            self.last_parsed_data["is_accident"] = is_accident
-            self.last_parsed_data["event_label"] = event_label
+
+            # [REMAIN-1] is_accident TTL 설정
+            # 사고 이벤트 수신 시 10초 유효기간 부여 — Arduino는 정상 상태에서 이벤트를 보내지
+            # 않으므로 TTL 없이는 is_accident가 영구 True로 고착되어 브레이크/MQTT 폭탄 발생
+            # 전도(label 1) 재전송 간격(8s) < TTL(10s) → 지속 전도 시 TTL 연장되어 계속 True 유지
+            ACCIDENT_TTL_SEC = 10.0
+            accident_expires_at = (time.time() + ACCIDENT_TTL_SEC) if is_accident else 0.0
+
+            self.last_parsed_data["seq"]                = seq
+            self.last_parsed_data["is_accident"]        = is_accident
+            self.last_parsed_data["event_label"]        = event_label
+            self.last_parsed_data["accident_expires_at"] = accident_expires_at
             
             print("-" * 50)
             print(f"[BLE EVENT] 아두이노 이벤트를 수신했습니다. (라벨: {event_label})")
@@ -142,7 +150,11 @@ class HelmetBLEManager:
                 prev_helmet_id = self.last_helmet_id
                 self.is_connected = False
                 # 연결 끊김 시 상태 초기화 — 이전 사고 상태가 재연결 후까지 잔존하면 오작동
-                self.last_parsed_data = {"seq": -1, "is_worn": False, "is_accident": False, "event_label": 0}
+                self.last_parsed_data = {
+                    "seq": -1, "is_worn": False,
+                    "is_accident": False, "event_label": 0,
+                    "accident_expires_at": 0.0,
+                }
                 self.last_helmet_id = "unknown"
                 # [BUG-J] 연결 끊김 콜백 — MQTT status 발행
                 if self.on_connection_change:

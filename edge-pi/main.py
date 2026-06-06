@@ -40,12 +40,19 @@ class SmartBikeSystem:
         
         # 구조체 통신으로 넘어온 event_label 추가 
         helmet_data = getattr(self.ble, 'last_parsed_data', {
-            "seq": -1, "is_worn": False, "is_accident": False, "event_label": 0
+            "seq": -1, "is_worn": False, "is_accident": False,
+            "event_label": 0, "accident_expires_at": 0.0,
         })
         loc_data = self.location.get_sensor_data()
-        
+
+        # [REMAIN-1] TTL 만료 체크 — Arduino는 정상 상태에서 이벤트를 보내지 않으므로
+        # is_accident=True가 고착되지 않도록 accident_expires_at 이후엔 False로 취급
+        helmet_is_accident = helmet_data.get("is_accident", False)
+        if helmet_is_accident and time.time() > helmet_data.get("accident_expires_at", 0.0):
+            helmet_is_accident = False
+
         # 이중 사고 방어망 (헬멧 사고 OR 본체 충격)
-        is_accident = helmet_data.get("is_accident", False) or loc_data.get("bike_shock", False)
+        is_accident = helmet_is_accident or loc_data.get("bike_shock", False)
 
         return {
             "arduino_seq": helmet_data.get("seq", -1),
@@ -102,7 +109,13 @@ class SmartBikeSystem:
             sensor_data.get("event_label", 0) != 0
         )
 
-        # 이벤트 발생 시 즉시 전송, 평시에는 60초 대기 (1분 주기)
+        # [REMAIN-1] MQTT 전송 간격 상한
+        # 긴급 이벤트여도 최소 1초 간격 — is_accident 고착 시 0.1초 루프마다 10msg/sec 방지
+        # 평시 60초 주기는 유지
+        min_interval = 1.0 if is_emergency_event else 60.0
+        if current_time - self.last_telemetry_time < min_interval:
+            return
+
         if is_emergency_event or (current_time - self.last_telemetry_time >= 60.0):
             self.mqtt.send_bike_state(
                 speed=sensor_data["speed"],
