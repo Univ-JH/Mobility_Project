@@ -8,9 +8,18 @@ PI_ID = "pi_01"
 # ==========================================
 BLE_DEVICE_NAME = "SmartHelmet_Alpha"
 
-# 아두이노에서 나눈 2개의 고유 UUID
-STATUS_CHAR_UUID = "19B10001-E8F2-537E-4F6C-D104768A1214"
-EVENT_CHAR_UUID = "19B10002-E8F2-537E-4F6C-D104768A1214"
+# GATT 서비스 UUID (헬멧 서비스 루트)
+SERVICE_UUID      = "19B10000-E8F2-537E-4F6C-D104768A1214"
+
+# Characteristic UUID — Arduino → Pi (Read | Notify)
+STATUS_CHAR_UUID  = "19B10001-E8F2-537E-4F6C-D104768A1214"  # 착용 상태 (1 byte)
+EVENT_CHAR_UUID   = "19B10002-E8F2-537E-4F6C-D104768A1214"  # 안전 이벤트 (14 bytes)
+
+# Characteristic UUID — Pi → Arduino (Write)  [BUG-I]
+COMMAND_CHAR_UUID = "19B10003-E8F2-537E-4F6C-D104768A1214"  # 제어 명령 (1 byte)
+
+# 명령 코드 (Pi → Arduino)
+CMD_BUZZER_ALERT  = 0x01  # 후방 접근 경고 — 헬멧 버저 울리기
 
 # 아두이노 C++ 구조체 데이터 규격 (총 14바이트)
 # < (리틀엔디안) / B (1바이트) / I (4바이트 정수)
@@ -29,9 +38,10 @@ MQTT_CLIENT_ID = f"alpha_node_{PI_ID}"
 # [3] MQTT 발행(Publish) 토픽 설정
 # 백엔드가 수신하는 토픽 규격(device/+/telemetry)에 맞춤
 # ==========================================
-MQTT_TOPIC_EVENT = f"device/{PI_ID}/event"           
-MQTT_TOPIC_EMERGENCY = f"device/{PI_ID}/emergency"    
 MQTT_TOPIC_TELEMETRY = f"device/{PI_ID}/telemetry"
+MQTT_TOPIC_EVENT     = f"device/{PI_ID}/event"
+MQTT_TOPIC_STATUS    = f"device/{PI_ID}/status"    # 헬멧 BLE 연결/끊김 상태 [BUG-J]
+MQTT_TOPIC_EMERGENCY = f"device/{PI_ID}/emergency"
 
 # ==========================================
 # [4] AI 비전 (도로/인도 판별) 통신 설정
