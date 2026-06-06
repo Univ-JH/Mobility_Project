@@ -28,6 +28,9 @@ class HelmetBLEManager:
         self.client = None
         # [CONTRACT-2] BLE 연결된 헬멧의 MAC 주소 — MQTT helmet_id 필드로 사용
         self.last_helmet_id: str = "unknown"
+        # [BUG-J] 연결 상태 변경 시 호출할 async 콜백 — main.py에서 등록
+        # signature: async (connected: bool, helmet_id: str) -> None
+        self.on_connection_change = None
 
     def _status_notification_handler(self, sender, data):
         """[콜백 1] 헬멧 착용 상태 실시간 변경 수신 (1바이트 데이터)"""
@@ -113,6 +116,10 @@ class HelmetBLEManager:
                             print(f"[BLE] 초기 착용 상태 읽기 완료: {initial_status[0] if initial_status else 'N/A'}")
                         except Exception as e:
                             print(f"⚠️ [BLE] 초기 착용 상태 읽기 실패 (무시): {e}")
+
+                        # [BUG-J] 연결 성공 콜백 — MQTT status 발행
+                        if self.on_connection_change:
+                            await self.on_connection_change(True, self.last_helmet_id)
                     
                 except Exception as e:
                     print(f"⚠️ [BLE] 통신 레이어 초기화 실패 (재연결 대기): {e}")
@@ -130,10 +137,14 @@ class HelmetBLEManager:
             # 연결 유실 감지 모니터링 파트
             if self.client and not self.client.is_connected:
                 print("❌ [BLE] 아두이노 헬멧과의 연결이 유실되었습니다. 복구 모드로 진입합니다.")
+                prev_helmet_id = self.last_helmet_id
                 self.is_connected = False
                 # 연결 끊김 시 상태 초기화 — 이전 사고 상태가 재연결 후까지 잔존하면 오작동
                 self.last_parsed_data = {"seq": -1, "is_worn": False, "is_accident": False, "event_label": 0}
                 self.last_helmet_id = "unknown"
+                # [BUG-J] 연결 끊김 콜백 — MQTT status 발행
+                if self.on_connection_change:
+                    await self.on_connection_change(False, prev_helmet_id)
                 
             # [FIX BUG-C] 1.0s → 0.3s: 연결 단절 감지 지연 최소화
             await asyncio.sleep(0.3)

@@ -4,7 +4,8 @@ from datetime import datetime
 
 # 분리된 설정값을 불러옵니다.
 from src.communication.comm_config import (
-    MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID, MQTT_TOPIC_TELEMETRY
+    MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID,
+    MQTT_TOPIC_TELEMETRY, MQTT_TOPIC_STATUS,
 )
 
 class BikeMQTTClient:
@@ -71,6 +72,20 @@ class BikeMQTTClient:
         # 오프라인 상태이거나 위험도가 높을 때 데이터 유실을 막기 위해 QoS 1 사용
         qos_level = 1
         self.client.publish(MQTT_TOPIC_TELEMETRY, json.dumps(payload), qos=qos_level)
+
+    def send_helmet_status(self, connected: bool, helmet_id: str):
+        """[BUG-J] 헬멧 BLE 연결/끊김 상태를 device/{id}/status 토픽으로 발행.
+        백엔드가 헬멧 connectivity를 추적하는 데 사용.
+        """
+        payload = {
+            "deviceId":        MQTT_CLIENT_ID,
+            "helmetId":        helmet_id,
+            "helmet_connected": connected,
+            "timestamp":       datetime.now().isoformat(),
+        }
+        self.client.publish(MQTT_TOPIC_STATUS, json.dumps(payload), qos=1)
+        state = "연결" if connected else "끊김"
+        print(f"[MQTT] 헬멧 상태 발행: {state} (helmet_id={helmet_id})")
 
     def stop(self):
         self.client.loop_stop()

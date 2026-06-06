@@ -121,10 +121,17 @@ class SmartBikeSystem:
             )
             self.last_telemetry_time = current_time
 
+    async def _on_helmet_connection_change(self, connected: bool, helmet_id: str):
+        """[BUG-J] BLE 연결 상태 변경 → MQTT device/{id}/status 발행"""
+        self.mqtt.send_helmet_status(connected=connected, helmet_id=helmet_id)
+
     async def main_loop(self):
         """시스템의 심장 역할을 하는 무한 제어 루프"""
         self.is_running = True
-        
+
+        # [BUG-J] 헬멧 연결/끊김 이벤트를 MQTT로 전달할 콜백 등록
+        self.ble.on_connection_change = self._on_helmet_connection_change
+
         self.mqtt.start()
         self.vision.start()
         self.location.start()
