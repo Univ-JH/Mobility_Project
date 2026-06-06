@@ -44,6 +44,20 @@ async def get_active_policy() -> Any:
     """Get the currently active policy."""
     policy = await Policy.find_one(Policy.isActive == True)
     if not policy:
-        # Default policy if none exists
-        policy = Policy(policyId="default", name="Default", isActive=True)
+        return create_success_response(
+            data={
+                "policyId": "default",
+                "version": 1,
+                "name": "기본 정책",
+                "scope": "global",
+                "priority": 100,
+                "helmetRequired": True,
+                "maxSpeedKph": 25.0,
+                "sidewalkBrakeLevel": 2,
+                "isActive": False,
+                "effectiveFrom": None,
+                "createdAt": None,
+            },
+            message="활성 정책이 없습니다. 기본값을 반환합니다.",
+        )
     return create_success_response(data=policy.model_dump(), message="활성 정책 조회 성공")

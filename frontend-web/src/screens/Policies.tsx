@@ -6,14 +6,17 @@ export const Policies: React.FC = () => {
   const [policy, setPolicy] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     const fetchPolicy = async () => {
       try {
         const res = await adminApi.getActivePolicy();
         setPolicy(res.data);
+        setFetchError(false);
       } catch (err) {
         console.error('Failed to fetch policy', err);
+        setFetchError(true);
       } finally {
         setLoading(false);
       }
@@ -40,7 +43,14 @@ export const Policies: React.FC = () => {
     }
   };
 
-  if (loading) return <div>로딩 중...</div>;
+  if (loading) return <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>로딩 중...</div>;
+
+  if (fetchError) return (
+    <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <span style={{ color: 'var(--accent-critical)', fontWeight: 600 }}>⚠ 정책 데이터를 불러올 수 없습니다</span>
+      <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>서버 상태를 확인하거나 페이지를 새로고침하세요.</span>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
