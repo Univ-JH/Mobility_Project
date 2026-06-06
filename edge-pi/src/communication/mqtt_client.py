@@ -34,29 +34,37 @@ class BikeMQTTClient:
         except Exception as e:
             print(f"⚠️ [MQTT] 시작 에러: {e}")
 
-    def send_bike_state(self, speed: float, road_type: str, lat: float, lon: float, 
-                        arduino_seq: int, is_worn: bool, is_accident: bool, 
-                        severity: str, reason: str, brake_level: str):
+    def send_bike_state(self, speed: float, road_type: str, lat: float, lon: float,
+                        arduino_seq: int, is_worn: bool, is_accident: bool,
+                        severity: str, reason: str, brake_level: str,
+                        confidence: float = 0.5, battery_level: int = -1,
+                        helmet_id: str = "unknown"):
         """
         자전거의 모든 센서 및 판단 상태를 하나의 JSON 패킷으로 묶어 서버로 연속 전송합니다.
+
+        confidence: 사고 판단 신뢰도 (0.0~1.0). event_label 기반으로 main.py에서 계산.
+        battery_level: 헬멧 배터리 잔량 (%). Arduino 구조체에 미포함 시 -1.
+        helmet_id: 연결된 헬멧 BLE MAC 주소. 미연결 시 "unknown".
         """
-        # NoSQL 기반 JSON 구조 설계
         payload = {
-            "deviceId": MQTT_CLIENT_ID,       # 1. 기기 아이디 (pi_01)
-            "speed": round(speed, 2),         # 2. 현재 속도 (km/h)
-            "environment": road_type,         # 3. 주행 노면 (road / sidewalk)
-            "latitude": lat,                  # 4. 위도
-            "longitude": lon,                 # 5. 경도
-            "timestamp": datetime.now().isoformat(), # 6. 데이터 발생 시간
+            "deviceId": MQTT_CLIENT_ID,              # Pi 기기 ID (MQTT 토픽 식별자)
+            "helmetId": helmet_id,                   # [CONTRACT-2] 헬멧 BLE MAC 주소
+            "speed": round(speed, 2),
+            "environment": road_type,
+            "latitude": lat,
+            "longitude": lon,
+            "timestamp": datetime.now().isoformat(),
             "arduino": {
-                "seq": arduino_seq,           # 7. 아두이노 패킷 번호
-                "is_worn": is_worn,           # 8. 헬멧 착용 여부
-                "is_accident": is_accident     # 9. 헬멧 사고 여부
+                "seq": arduino_seq,
+                "is_worn": is_worn,
+                "is_accident": is_accident,
+                "battery_level": battery_level,      # [CONTRACT-1] -1 = 아두이노 미전송 (구조체 미포함)
             },
             "safety": {
-                "severity": severity,         # 10. 위험도 (NONE / INFO / WARNING / CRITICAL)
-                "reason": reason,             # 11. 브레이크 작동 이유
-                "brake_level": brake_level    # 12. 브레이크 제어 강도 (level_0 ~ emergency)
+                "severity": severity,
+                "reason": reason,
+                "brake_level": brake_level,
+                "confidence": round(confidence, 3),  # [CONTRACT-3] 사고 판단 신뢰도
             }
         }
 

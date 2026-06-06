@@ -71,21 +71,37 @@ class SmartBikeSystem:
 
     def _send_mqtt_logs(self, brake_level: str, reason: str, sensor_data: Dict[str, Any]):
         """NoSQL DB에 최적화된 단일 JSON 패킷 전송을 수행합니다."""
-        
+
         if brake_level == "level_emergency": severity = "CRITICAL"
         elif brake_level == "level_2": severity = "WARNING"
         elif brake_level == "level_1": severity = "INFO"
         else: severity = "NONE"
 
+        # [CONTRACT-3] event_label 기반 사고 판단 신뢰도 계산
+        # 충돌(4G 이상 물리 임팩트): 가장 명확한 물리 신호 → 0.95
+        # 전도(1.5초 지속 기울기): 유지 시간으로 확증 → 0.85
+        # 충돌 후 이탈(label 5): 복합 조건 충족 → 0.80
+        # 급가속/급정거(label 3/4): 정방향 축 임계값, 오감지 여지 있음 → 0.75
+        # 자전거 본체 충격만(BLE 사고 없음): Pi IMU 단독 판단 → 0.70
+        # 평시: 기준값 → 0.50
+        _LABEL_CONFIDENCE = {1: 0.85, 2: 0.95, 3: 0.75, 4: 0.75, 5: 0.80}
+        label = sensor_data.get("event_label", 0)
+        if label in _LABEL_CONFIDENCE:
+            confidence = _LABEL_CONFIDENCE[label]
+        elif sensor_data.get("bike_shock", False):
+            confidence = 0.70
+        else:
+            confidence = 0.50
+
         current_time = time.time()
-        
+
         # 이벤트(사고 감지, 아두이노 특별 이벤트) 또는 위험(브레이크 개입) 상황 판단
         is_emergency_event = (
-            severity != "NONE" or 
-            sensor_data.get("is_accident", False) or 
+            severity != "NONE" or
+            sensor_data.get("is_accident", False) or
             sensor_data.get("event_label", 0) != 0
         )
-        
+
         # 이벤트 발생 시 즉시 전송, 평시에는 60초 대기 (1분 주기)
         if is_emergency_event or (current_time - self.last_telemetry_time >= 60.0):
             self.mqtt.send_bike_state(
@@ -98,7 +114,10 @@ class SmartBikeSystem:
                 is_accident=sensor_data["is_accident"],
                 severity=severity,
                 reason=reason,
-                brake_level=brake_level
+                brake_level=brake_level,
+                confidence=confidence,
+                battery_level=-1,
+                helmet_id=self.ble.last_helmet_id,
             )
             self.last_telemetry_time = current_time
 

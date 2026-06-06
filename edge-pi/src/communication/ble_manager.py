@@ -26,6 +26,8 @@ class HelmetBLEManager:
         }
         self.is_connected = False
         self.client = None
+        # [CONTRACT-2] BLE 연결된 헬멧의 MAC 주소 — MQTT helmet_id 필드로 사용
+        self.last_helmet_id: str = "unknown"
 
     def _status_notification_handler(self, sender, data):
         """[콜백 1] 헬멧 착용 상태 실시간 변경 수신 (1바이트 데이터)"""
@@ -89,17 +91,28 @@ class HelmetBLEManager:
                         continue
 
                     print(f"🌐 [BLE] 장치 포착! 핸드셰이크를 시작합니다. [맥주소: {device.address}]")
-                    
+
                     self.client = BleakClient(device)
                     await self.client.connect()
-                    
+
                     if self.client.is_connected:
                         self.is_connected = True
-                        print(f"✅ [BLE] {self.device_name} 무선 통신망 연결 성공. 센서 알림(Notify)을 개방합니다.")
-                        
+                        # [CONTRACT-2] 헬멧 MAC 주소 저장 — MQTT helmet_id 추적용
+                        self.last_helmet_id = device.address
+                        print(f"✅ [BLE] {self.device_name} 연결 성공. [helmet_id: {self.last_helmet_id}]")
+
                         # 아두이노의 고유 Characteristic UUID 실시간 구독 개시
                         await self.client.start_notify(self.status_uuid, self._status_notification_handler)
                         await self.client.start_notify(self.event_uuid, self._event_notification_handler)
+
+                        # [FIX BUG-4] 연결 시점에 이미 착용 중인 경우 초기값 읽기
+                        # notify는 변경 이벤트만 전달 → 연결 전 착용 상태는 수신 불가
+                        try:
+                            initial_status = await self.client.read_gatt_char(self.status_uuid)
+                            self._status_notification_handler(None, initial_status)
+                            print(f"[BLE] 초기 착용 상태 읽기 완료: {initial_status[0] if initial_status else 'N/A'}")
+                        except Exception as e:
+                            print(f"⚠️ [BLE] 초기 착용 상태 읽기 실패 (무시): {e}")
                     
                 except Exception as e:
                     print(f"⚠️ [BLE] 통신 레이어 초기화 실패 (재연결 대기): {e}")
@@ -111,6 +124,9 @@ class HelmetBLEManager:
             if self.client and not self.client.is_connected:
                 print("❌ [BLE] 아두이노 헬멧과의 연결이 유실되었습니다. 복구 모드로 진입합니다.")
                 self.is_connected = False
+                # 연결 끊김 시 상태 초기화 — 이전 사고 상태가 재연결 후까지 잔존하면 오작동
+                self.last_parsed_data = {"seq": -1, "is_worn": False, "is_accident": False, "event_label": 0}
+                self.last_helmet_id = "unknown"
                 
             await asyncio.sleep(1.0)
 
