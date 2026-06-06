@@ -10,7 +10,7 @@ from src.control.radar import MmwaveRadarSensor
 # 2. 통신 모듈
 from src.communication.ble_manager import HelmetBLEManager
 from src.communication.mqtt_client import BikeMQTTClient
-from src.communication.comm_config import PI_ID
+from src.communication.comm_config import PI_ID, CMD_BUZZER_ALERT
 
 # 3. 데이터 수집 모듈 (AI 비전 & GPS/IMU)
 from src.vision.vision_receiver import VisionReceiver
@@ -171,9 +171,11 @@ class SmartBikeSystem:
                             elif sensor_data["bike_shock"]:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
-                    # 후방 고속 접근 감지 시 부저 알림
+                    # 후방 고속 접근 감지 시 Pi 레이더 부저 + 헬멧 버저 동시 경고
                     if sensor_data.get("rear_approach"):
                         self.radar.trigger_warning()
+                        # [BUG-I] 헬멧 버저도 울림 — 귀에 가까워 라이더 인지율 높음
+                        await self.ble.send_command(CMD_BUZZER_ALERT)
 
                     # 비동기 격리 (브레이크 서보 모터)
                     await asyncio.to_thread(self._execute_brake_command, brake_level)

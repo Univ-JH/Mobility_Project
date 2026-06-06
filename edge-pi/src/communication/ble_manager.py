@@ -4,17 +4,19 @@ from bleak import BleakClient, BleakScanner
 
 # 통합 설정 파일에서 정밀 규격 변수들을 안전하게 가져옵니다.
 from src.communication.comm_config import (
-    BLE_DEVICE_NAME, 
-    STATUS_CHAR_UUID, 
-    EVENT_CHAR_UUID, 
-    EVENT_STRUCT_FORMAT
+    BLE_DEVICE_NAME,
+    STATUS_CHAR_UUID,
+    EVENT_CHAR_UUID,
+    COMMAND_CHAR_UUID,
+    EVENT_STRUCT_FORMAT,
 )
 
 class HelmetBLEManager:
     def __init__(self):
-        self.device_name = BLE_DEVICE_NAME
-        self.status_uuid = STATUS_CHAR_UUID
-        self.event_uuid = EVENT_CHAR_UUID
+        self.device_name  = BLE_DEVICE_NAME
+        self.status_uuid  = STATUS_CHAR_UUID
+        self.event_uuid   = EVENT_CHAR_UUID
+        self.command_uuid = COMMAND_CHAR_UUID  # [BUG-I] Pi → Arduino write
         self.struct_format = EVENT_STRUCT_FORMAT
         
         # 메인 시스템 및 MQTT 모듈과 100% 데이터 규격을 맞춘 통합 공유 저장소
@@ -148,6 +150,21 @@ class HelmetBLEManager:
                 
             # [FIX BUG-C] 1.0s → 0.3s: 연결 단절 감지 지연 최소화
             await asyncio.sleep(0.3)
+
+    async def send_command(self, cmd: int) -> bool:
+        """[BUG-I] Pi → Arduino 단방향 제어 명령 전송 (1 byte write).
+
+        cmd: comm_config.CMD_* 상수 사용.
+        returns: 전송 성공 여부.
+        """
+        if not self.is_connected or not self.client:
+            return False
+        try:
+            await self.client.write_gatt_char(self.command_uuid, bytes([cmd]))
+            return True
+        except Exception as e:
+            print(f"⚠️ [BLE] 명령 전송 실패 (cmd=0x{cmd:02X}): {e}")
+            return False
 
     async def stop(self):
         """시스템 다운 시 통신 포트 및 구독 핸들러를 물리적으로 완전 반환"""
