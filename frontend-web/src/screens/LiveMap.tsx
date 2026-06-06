@@ -24,7 +24,7 @@ const MapFlyController: React.FC<{ target: [number, number] | null }> = ({ targe
 };
 
 export const LiveMap: React.FC = () => {
-  const { markerDevices, onlineDevices, offlineDevices, isLoading } = useMapDevices();
+  const { markerDevices, onlineDevices, offlineDevices, isLoading, isError } = useMapDevices();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
   const selectedDevice: MapDevice | undefined = markerDevices.find(
@@ -76,6 +76,23 @@ export const LiveMap: React.FC = () => {
               }}
             >
               지도 데이터 로딩 중...
+            </div>
+          ) : isError ? (
+            <div
+              style={{
+                display: 'flex',
+                height: '100%',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column',
+                gap: '8px',
+                color: 'var(--accent-critical)',
+              }}
+            >
+              <span>⚠ 지도 데이터를 불러올 수 없습니다</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                네트워크 상태를 확인하세요
+              </span>
             </div>
           ) : (
             <MapContainer

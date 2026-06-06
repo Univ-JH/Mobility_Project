@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { DeviceListItem } from '../../api/adminApi';
-import { isDangerous, STATE_HEX, isDeviceOnline } from '../../utils/deviceStatus';
+import { isDangerous, STATE_HEX } from '../../utils/deviceStatus';
 
 interface Props {
   onlineDevices: DeviceListItem[];
@@ -14,7 +14,7 @@ function relativeTime(lastSeenAt: string | null): string {
   const ts = new Date(lastSeenAt).getTime();
   if (isNaN(ts)) return '알 수 없음';
   const mins = Math.floor((Date.now() - ts) / 60000);
-  if (mins < 1) return '방금 전';
+  if (mins <= 0) return '방금 전';
   if (mins < 60) return `${mins}분 전`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}시간 전`;
@@ -23,15 +23,16 @@ function relativeTime(lastSeenAt: string | null): string {
 
 function DeviceRow({
   device,
+  online,
   selected,
   onSelect,
 }: {
   device: DeviceListItem;
+  online: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
   const color = STATE_HEX[device.currentState] ?? '#8b9bb4';
-  const online = isDeviceOnline(device.lastSeenAt);
   const dangerous = isDangerous(device.currentState);
 
   return (
@@ -90,6 +91,7 @@ function Section({
   title,
   count,
   dotColor,
+  isOnlineSection,
   devices,
   selectedDeviceId,
   onSelect,
@@ -97,6 +99,7 @@ function Section({
   title: string;
   count: number;
   dotColor: string;
+  isOnlineSection: boolean;
   devices: DeviceListItem[];
   selectedDeviceId: string | null;
   onSelect: (id: string) => void;
@@ -153,6 +156,7 @@ function Section({
           <DeviceRow
             key={d.deviceId}
             device={d}
+            online={isOnlineSection}
             selected={selectedDeviceId === d.deviceId}
             onSelect={() => onSelect(d.deviceId)}
           />
@@ -199,6 +203,7 @@ export const MapDevicePanel: React.FC<Props> = ({
           title="온라인"
           count={onlineDevices.length}
           dotColor="#10b981"
+          isOnlineSection={true}
           devices={onlineDevices}
           selectedDeviceId={selectedDeviceId}
           onSelect={onSelect}
@@ -207,6 +212,7 @@ export const MapDevicePanel: React.FC<Props> = ({
           title="오프라인"
           count={offlineDevices.length}
           dotColor="#8b9bb4"
+          isOnlineSection={false}
           devices={offlineDevices}
           selectedDeviceId={selectedDeviceId}
           onSelect={onSelect}
