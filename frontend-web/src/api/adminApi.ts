@@ -53,6 +53,16 @@ export interface DeviceListItem {
   currentPolicyVersion: number;
 }
 
+export interface MapDevice {
+  deviceId: string;
+  lat: number;
+  lng: number;
+  state: string;
+  isOnline: boolean;
+  isDangerous: boolean;
+  lastSeenAt: string | null;
+}
+
 export interface EventLog {
   eventId: string;
   deviceId: string;
