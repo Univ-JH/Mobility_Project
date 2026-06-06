@@ -1,10 +1,11 @@
 import L from 'leaflet';
 
-const ONLINE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
 
 export function isDeviceOnline(lastSeenAt: string | null): boolean {
   if (!lastSeenAt) return false;
-  return Date.now() - new Date(lastSeenAt).getTime() < ONLINE_THRESHOLD_MS;
+  const ts = new Date(lastSeenAt).getTime();
+  return !isNaN(ts) && Date.now() - ts < ONLINE_THRESHOLD_MS;
 }
 
 export function isDangerous(state: string): boolean {
@@ -21,13 +22,20 @@ export const STATE_HEX: Record<string, string> = {
   READY: '#8b9bb4',
 };
 
+// Cache: max 12 combos (6 states × online/offline)
+const iconCache = new Map<string, L.DivIcon>();
+
 export function createMarkerIcon(state: string, online: boolean): L.DivIcon {
+  const cacheKey = `${state}:${online}`;
+  const cached = iconCache.get(cacheKey);
+  if (cached) return cached;
+
   const color = STATE_HEX[state] ?? '#8b9bb4';
   const label = isDangerous(state) ? '위험' : '안전';
   const statusText = online ? '온라인' : '오프라인';
   const dotOpacity = online ? '1' : '0.4';
 
-  return L.divIcon({
+  const icon = L.divIcon({
     className: '',
     html: `
       <div style="display:flex;flex-direction:column;align-items:center;pointer-events:none;">
@@ -42,7 +50,6 @@ export function createMarkerIcon(state: string, online: boolean): L.DivIcon {
           white-space:nowrap;
           margin-bottom:3px;
           box-shadow:0 1px 4px rgba(0,0,0,0.4);
-          opacity:${dotOpacity};
         ">${label} · ${statusText}</div>
         <div style="
           width:14px;height:14px;border-radius:50%;
@@ -53,8 +60,11 @@ export function createMarkerIcon(state: string, online: boolean): L.DivIcon {
         "></div>
       </div>
     `,
-    iconSize: [80, 38],
-    iconAnchor: [40, 38],
-    popupAnchor: [0, -40],
+    iconSize: [90, 40],
+    iconAnchor: [45, 40],
+    popupAnchor: [0, -42],
   });
+
+  iconCache.set(cacheKey, icon);
+  return icon;
 }
