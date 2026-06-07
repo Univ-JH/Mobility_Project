@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from app.repositories.models import Device
 from app.domain.states import DeviceState
@@ -73,3 +73,28 @@ async def deregister_device(device_id: str, user_id: str) -> bool:
     device.ownerUserId = ""
     await device.save()
     return True
+
+
+async def upsert_heartbeat(device_id: str) -> None:
+    now = datetime.now(timezone.utc)
+    device = await Device.find_one(Device.deviceId == device_id)
+    if device:
+        device.lastHeartbeatAt = now
+        await device.save()
+    else:
+        new_device = Device(
+            deviceId=device_id,
+            deviceType="unknown",
+            ownerUserId="",
+            fwVersion="unknown",
+            lastHeartbeatAt=now,
+        )
+        await new_device.insert()
+
+
+async def get_available_devices(user_id: str) -> list[Device]:
+    threshold = datetime.now(timezone.utc) - timedelta(seconds=60)
+    return await Device.find(
+        Device.lastHeartbeatAt >= threshold,
+        Device.ownerUserId != user_id,
+    ).to_list()
