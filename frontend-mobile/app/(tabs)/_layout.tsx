@@ -1,9 +1,21 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
+import { View, ActivityIndicator } from 'react-native';
 import { Home, List, User, Cpu } from 'lucide-react-native';
+import { useAuth } from '../../src/context/AuthContext';
 import { useEmergencyPolling } from '../../src/hooks/useEmergencyPolling';
 
 export default function TabLayout() {
+  const { token, isLoading } = useAuth();
   useEmergencyPolling();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
+  if (!token) return <Redirect href="/login" />;
 
   return (
     <Tabs screenOptions={{

@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { userApi } from '../api/userApi';
+import { useAuth } from '../context/AuthContext';
 import { useEmergency } from '../context/EmergencyContext';
 
 // AGENTS.md: no unlimited background network activity
 const FOREGROUND_POLL_MS = 5_000;
 
 export const useEmergencyPolling = (): void => {
+  const { token } = useAuth();
   const { triggerSOS, emergencyState } = useEmergency();
 
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -28,6 +30,7 @@ export const useEmergencyPolling = (): void => {
   const { data } = useQuery({
     queryKey: ['emergencies', 'active'],
     queryFn: () => userApi.getActiveEmergencies(),
+    enabled: !!token,
     // Pause poll when app is backgrounded or overlay already showing
     refetchInterval: () => {
       if (appStateRef.current !== 'active') return false;
