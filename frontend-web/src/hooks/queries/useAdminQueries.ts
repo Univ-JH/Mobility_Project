@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../../api/adminApi';
-import type { MapDevice, DeviceListItem } from '../../api/adminApi';
+import type { MapDevice } from '../../api/adminApi';
 import { isDeviceOnline, isDangerous } from '../../utils/deviceStatus';
 
 export const useDashboardStats = () => {
@@ -82,30 +82,21 @@ export const useDeviceEvents = (deviceId: string) => {
 };
 
 export const useMapDevices = () => {
-  const { data: locations, isLoading, isError } = useDeviceLocations();
-  const { data: deviceList } = useDeviceList();
-
-  const statusMap = useMemo(() => {
-    const m = new Map<string, DeviceListItem>();
-    deviceList?.forEach(d => m.set(d.deviceId, d));
-    return m;
-  }, [deviceList]);
+  const { data: deviceList, isLoading, isError } = useDeviceList();
 
   const markerDevices = useMemo((): MapDevice[] => {
-    if (!locations) return [];
-    return locations.map(loc => {
-      const detail = statusMap.get(loc.deviceId);
-      return {
-        deviceId: loc.deviceId,
-        lat: loc.lat,
-        lng: loc.lng,
-        state: loc.state,
-        isOnline: detail ? isDeviceOnline(detail.lastSeenAt) : false,
-        isDangerous: isDangerous(loc.state),
-        lastSeenAt: detail?.lastSeenAt ?? null,
-      };
-    });
-  }, [locations, statusMap]);
+    return (deviceList ?? [])
+      .filter(d => d.lastLocation !== null)
+      .map(d => ({
+        deviceId: d.deviceId,
+        lat: d.lastLocation!.lat,
+        lng: d.lastLocation!.lng,
+        state: d.currentState,
+        isOnline: isDeviceOnline(d.lastSeenAt),
+        isDangerous: isDangerous(d.currentState),
+        lastSeenAt: d.lastSeenAt,
+      }));
+  }, [deviceList]);
 
   const onlineDevices = useMemo(
     () => (deviceList ?? []).filter(d => isDeviceOnline(d.lastSeenAt)),
