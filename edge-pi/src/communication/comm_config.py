@@ -64,3 +64,9 @@ AI_SIDEWALK_VAL = "0"
 # 시스템 내부에서 사용할 명칭
 CLASS_ROAD = "road"
 CLASS_SIDEWALK = "sidewalk"
+
+# ==========================================
+# [6] 백엔드 HTTP 설정 (heartbeat용)
+# ==========================================
+BACKEND_URL = "http://52.79.242.44:8000"
+PRE_SHARED_TOKEN = "proto-secret-token-123"

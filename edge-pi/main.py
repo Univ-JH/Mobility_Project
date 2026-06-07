@@ -9,7 +9,8 @@ from src.control.radar import MmwaveRadarSensor
 # 2. 통신 모듈
 from src.communication.ble_manager import HelmetBLEManager
 from src.communication.mqtt_client import BikeMQTTClient
-from src.communication.comm_config import PI_ID, CMD_BUZZER_ALERT
+from src.communication.comm_config import PI_ID, CMD_BUZZER_ALERT, BACKEND_URL, PRE_SHARED_TOKEN
+from src.communication import heartbeat
 
 # 3. 데이터 수집 모듈 (AI 비전 & GPS/IMU)
 from src.ai.vision_receiver import VisionReceiver
@@ -146,7 +147,8 @@ class SmartBikeSystem:
         self.vision.start()
         self.location.start()
         asyncio.create_task(self.ble.start_listening())
-        
+        asyncio.create_task(heartbeat.start(BACKEND_URL, PI_ID, PRE_SHARED_TOKEN))
+
         print("✅ [시스템] 모든 모듈 무중단 가동 완료. 안전 루프 진입.")
 
         # 아두이노 C++ 이벤트 라벨 매핑 딕셔너리
