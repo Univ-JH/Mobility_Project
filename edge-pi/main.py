@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict, Any
 
 # 1. 하드웨어 제어 모듈
-from src.control.servo_control import BrakeServo
+from src.control.servo_control import BrakeController
 from src.control.ultrasonic import UltrasonicSensor
 from src.control.radar import MmwaveRadarSensor
 
@@ -23,7 +23,7 @@ class SmartBikeSystem:
     def __init__(self):
         print("🚲 [시스템] 스마트 자전거 안전 시스템 (BLE 구조체 고도화 모드) 초기화...")
         
-        self.brake = BrakeServo()
+        self.brake = BrakeController()
         self.sonar = UltrasonicSensor()
         self.radar = MmwaveRadarSensor()
         self.ble = HelmetBLEManager()
@@ -71,10 +71,10 @@ class SmartBikeSystem:
 
     def _execute_brake_command(self, brake_level: str):
         """판단 결과에 따라 실제 서보 모터를 움직입니다."""
-        if brake_level == "level_emergency": self.brake.pull_brake(power=100)
-        elif brake_level == "level_2": self.brake.pull_brake(power=60)
-        elif brake_level == "level_1": self.brake.pull_brake(power=30)
-        elif brake_level == "level_0": self.brake.release_brake()
+        if brake_level in ("level_emergency", "level_2", "level_1"):
+            self.brake.pull_brake()
+        elif brake_level == "level_0":
+            self.brake.release_brake()
 
     def _send_mqtt_logs(self, brake_level: str, reason: str, sensor_data: Dict[str, Any]):
         """NoSQL DB에 최적화된 단일 JSON 패킷 전송을 수행합니다."""
