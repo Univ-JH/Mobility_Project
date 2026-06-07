@@ -49,6 +49,11 @@ export interface MyDevice {
   lastSeenAt: string | null;
 }
 
+export interface AvailableDevice {
+  deviceId: string;
+  lastSeenAt: string | null;
+}
+
 export const userApi = {
   getProfile: () => 
     axiosInstance.get<any, BaseResponse<UserProfile>>('/users/profile'),
@@ -79,4 +84,7 @@ export const userApi = {
 
   deregisterDevice: (deviceId: string) =>
     axiosInstance.delete<any, BaseResponse<{ deviceId: string }>>(`/devices/${deviceId}`),
+
+  getAvailableDevices: () =>
+    axiosInstance.get<any, BaseResponse<{ devices: AvailableDevice[] }>>('/devices/available'),
 };

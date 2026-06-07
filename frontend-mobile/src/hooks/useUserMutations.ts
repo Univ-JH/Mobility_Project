@@ -7,16 +7,16 @@ type ApiError = AxiosError<BaseResponse<unknown>>;
 
 export const usePairDevice = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ deviceId, type }: { deviceId: string, type: string }) => 
+    mutationFn: ({ deviceId, type }: { deviceId: string, type: string }) =>
       userApi.pairDevice(deviceId, type),
     onSuccess: () => {
-      // Invalidate queries or update local state
-      Alert.alert('Success', 'Device paired successfully');
+      queryClient.invalidateQueries({ queryKey: ['myDevices'] });
+      Alert.alert('연결 완료', '디바이스가 연결되었습니다.');
     },
     onError: (error: ApiError) => {
-      Alert.alert('Error', error.response?.data?.message ?? 'Failed to pair device');
+      Alert.alert('연결 실패', error.response?.data?.message ?? '디바이스 연결에 실패했습니다.');
     }
   });
 };

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, Alert, TextInput, Modal, SafeAreaView,
+  ActivityIndicator, Alert, SafeAreaView,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Bluetooth, Plus, Trash2, Wifi, WifiOff } from 'lucide-react-native';
 import { useMyDevices } from '../../src/hooks/useUserQueries';
-import { useRegisterDevice, useDeregisterDevice } from '../../src/hooks/useUserMutations';
+import { useDeregisterDevice } from '../../src/hooks/useUserMutations';
 import type { MyDevice } from '../../src/api/userApi';
 
 const STATE_COLORS: Record<string, string> = {
@@ -27,29 +28,9 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 export default function DevicesScreen() {
+  const router = useRouter();
   const { data: devices, isLoading, refetch } = useMyDevices();
-  const registerMutation = useRegisterDevice();
   const deregisterMutation = useDeregisterDevice();
-
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newDeviceId, setNewDeviceId] = useState('');
-  const [newDeviceType, setNewDeviceType] = useState('scooter');
-
-  const handleRegister = () => {
-    if (!newDeviceId.trim()) {
-      Alert.alert('입력 오류', '디바이스 ID를 입력해 주세요.');
-      return;
-    }
-    registerMutation.mutate(
-      { deviceId: newDeviceId.trim(), deviceType: newDeviceType },
-      {
-        onSuccess: () => {
-          setModalVisible(false);
-          setNewDeviceId('');
-        },
-      },
-    );
-  };
 
   const handleDeregister = (device: MyDevice) => {
     Alert.alert(
@@ -92,7 +73,7 @@ export default function DevicesScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>내 디바이스</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/pair')}>
           <Plus size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -116,47 +97,6 @@ export default function DevicesScreen() {
           refreshing={isLoading}
         />
       )}
-
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>디바이스 등록</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="디바이스 ID (예: pi-001)"
-              placeholderTextColor="#64748b"
-              value={newDeviceId}
-              onChangeText={setNewDeviceId}
-              autoCapitalize="none"
-            />
-            <View style={styles.typeRow}>
-              {(['scooter', 'bike'] as const).map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[styles.typeChip, newDeviceType === t && styles.typeChipActive]}
-                  onPress={() => setNewDeviceType(t)}
-                >
-                  <Text style={[styles.typeChipText, newDeviceType === t && styles.typeChipTextActive]}>
-                    {t === 'scooter' ? '킥보드' : '자전거'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={[styles.button, registerMutation.isPending && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={registerMutation.isPending}
-            >
-              {registerMutation.isPending
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.buttonText}>등록</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-              <Text style={styles.cancelText}>취소</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -187,27 +127,4 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyText: { color: '#94a3b8', fontSize: 16, fontWeight: '600' },
   emptySubText: { color: '#64748b', fontSize: 13 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalBox: {
-    backgroundColor: '#1e293b', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 28, gap: 16,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#f8fafc' },
-  modalInput: {
-    backgroundColor: '#0f172a', borderRadius: 12, padding: 14,
-    color: '#f8fafc', fontSize: 15, borderWidth: 1, borderColor: '#334155',
-  },
-  typeRow: { flexDirection: 'row', gap: 12 },
-  typeChip: {
-    flex: 1, padding: 12, borderRadius: 10, borderWidth: 1,
-    borderColor: '#334155', alignItems: 'center',
-  },
-  typeChipActive: { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)' },
-  typeChipText: { color: '#94a3b8', fontWeight: '600' },
-  typeChipTextActive: { color: '#3b82f6' },
-  button: { backgroundColor: '#3b82f6', borderRadius: 12, padding: 16, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  cancelBtn: { alignItems: 'center', padding: 12 },
-  cancelText: { color: '#64748b', fontSize: 15 },
 });
