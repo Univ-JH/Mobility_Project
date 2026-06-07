@@ -44,7 +44,15 @@ MQTT_TOPIC_STATUS    = f"device/{PI_ID}/status"    # 헬멧 BLE 연결/끊김 �
 MQTT_TOPIC_EMERGENCY = f"device/{PI_ID}/emergency"
 
 # ==========================================
-# [4] AI 비전 (도로/인도 판별) 통신 설정
+# [4] GPS / IMU 설정
+# ==========================================
+GPS_SERIAL_PORT = "/dev/ttyAMA0"
+GPS_BAUDRATE = 9600
+IMU_I2C_ADDRESS = 0x68
+IMU_SHOCK_THRESHOLD = 2.0
+
+# ==========================================
+# [5] AI 비전 (도로/인도 판별) 통신 설정
 # ==========================================
 VISION_HOST = "127.0.0.1"  # 라즈베리 파이 내부 통신
 VISION_PORT = 5005

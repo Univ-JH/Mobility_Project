@@ -35,9 +35,6 @@ class SafetyStateMachine:
         ble_worn = sensor_data.get("is_worn", True)
         ble_accident = sensor_data.get("is_accident", False)
         
-        # 값이 안 들어왔을 때 안전을 위해 999(장애물 없음)로 처리
-        sonar_dist = sensor_data.get("distance_cm", 999.0) 
-        
         vision_class = sensor_data.get("surface_class", "road")
         vision_conf = sensor_data.get("confidence", 1.0)
 
@@ -63,11 +60,6 @@ class SafetyStateMachine:
             # 추돌 위험이 있으므로 급브레이크(level_2) 대신 가벼운 주의(level_1)와 부저 알람 부여
             self._log_state_transition("REAR_APPROACH_WARNING", reason, "level_1")
             return "level_1", reason, 1.0
-
-        if 0 < sonar_dist < self.OBSTACLE_WARNING_DIST:
-            reason = f"Rear obstacle too close: {sonar_dist:.1f}cm"
-            self._log_state_transition("COLLISION_WARNING", reason, "level_2")
-            return "level_2", reason, 1.0
 
         # ---------------------------------------------------------
         # [Priority 2] Fail-Safe (불확실성 제어: 카메라 가려짐 등)

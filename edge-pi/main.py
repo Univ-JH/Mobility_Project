@@ -4,7 +4,6 @@ from typing import Dict, Any
 
 # 1. 하드웨어 제어 모듈
 from src.control.servo_control import BrakeController
-from src.control.ultrasonic import UltrasonicSensor
 from src.control.radar import MmwaveRadarSensor
 
 # 2. 통신 모듈
@@ -24,7 +23,6 @@ class SmartBikeSystem:
         print("🚲 [시스템] 스마트 자전거 안전 시스템 (BLE 구조체 고도화 모드) 초기화...")
         
         self.brake = BrakeController()
-        self.sonar = UltrasonicSensor()
         self.radar = MmwaveRadarSensor()
         self.ble = HelmetBLEManager()
         self.mqtt = BikeMQTTClient()
@@ -59,7 +57,6 @@ class SmartBikeSystem:
             "is_worn": helmet_data.get("is_worn", False),
             "is_accident": is_accident,
             "event_label": helmet_data.get("event_label", 0), # 아두이노 상세 이벤트 라벨 (1~5)
-            "distance_cm": self.sonar.get_distance(),
             "rear_approach": self.radar.check_rear_approach(),
             "surface_class": self.vision.get_surface_type(),
             "confidence": self.vision.get_surface_confidence(),
@@ -186,8 +183,6 @@ class SmartBikeSystem:
 
                     # 후방 고속 접근 감지 시 Pi 레이더 부저 + 헬멧 버저 동시 경고
                     if sensor_data.get("rear_approach"):
-                        self.radar.trigger_warning()
-                        # [BUG-I] 헬멧 버저도 울림 — 귀에 가까워 라이더 인지율 높음
                         await self.ble.send_command(CMD_BUZZER_ALERT)
 
                     # 비동기 격리 (브레이크 서보 모터)
@@ -215,7 +210,6 @@ class SmartBikeSystem:
 
         self.brake.release_brake()
         self.brake.cleanup()
-        self.sonar.cleanup()
         self.radar.cleanup()
 
         self.location.stop()
