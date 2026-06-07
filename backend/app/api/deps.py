@@ -37,3 +37,13 @@ async def get_current_user(authorization: str = Header(None)) -> str:
         raise HTTPException(status_code=401, detail="AUTH_INVALID_CREDENTIALS")
         
     return "test_user_123"
+
+async def get_device_auth(authorization: str = Header(None)) -> str:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="AUTH_MISSING_TOKEN")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="AUTH_INVALID_SCHEME")
+    if token != settings.PRE_SHARED_TOKEN:
+        raise HTTPException(status_code=403, detail="AUTH_FORBIDDEN")
+    return token

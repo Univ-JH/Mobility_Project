@@ -2,11 +2,18 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Any
 
 from app.schemas.common import create_success_response
-from app.schemas.device_dto import DeviceCreate, DeviceStatusResponse, DevicePairRequest, DeviceUnlockRequest
-from app.repositories.device_repo import create_or_update_device, get_device
+from app.schemas.device_dto import (
+    DeviceCreate, DeviceStatusResponse, DevicePairRequest,
+    DeviceUnlockRequest, HeartbeatRequest, AvailableDevice,
+    AvailableDevicesResponse,
+)
+from app.repositories.device_repo import (
+    create_or_update_device, get_device,
+    upsert_heartbeat, get_available_devices,
+)
 from app.domain.states import DeviceState
 from app.services.mqtt_service import publish_control_command
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_device_auth
 
 router = APIRouter()
 
@@ -111,4 +118,32 @@ async def unlock_device(
     await device.save()
     
     return create_success_response(data={"state": device.currentState.value}, message="기기 잠금 해제 요청 전송")
+
+
+@router.post("/heartbeat")
+async def device_heartbeat(
+    request: HeartbeatRequest,
+    _: str = Depends(get_device_auth),
+) -> Any:
+    await upsert_heartbeat(request.deviceId)
+    return create_success_response(data={}, message="heartbeat 수신")
+
+
+@router.get("/available")
+async def list_available_devices(
+    user_id: str = Depends(get_current_user),
+) -> Any:
+    devices = await get_available_devices(user_id)
+    return create_success_response(
+        data={
+            "devices": [
+                {
+                    "deviceId": d.deviceId,
+                    "lastSeenAt": d.lastHeartbeatAt.isoformat() if d.lastHeartbeatAt else None,
+                }
+                for d in devices
+            ]
+        },
+        message="사용 가능한 디바이스 목록"
+    )
 
