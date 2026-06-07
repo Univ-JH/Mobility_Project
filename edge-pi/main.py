@@ -13,7 +13,7 @@ from src.communication.mqtt_client import BikeMQTTClient
 from src.communication.comm_config import PI_ID, CMD_BUZZER_ALERT
 
 # 3. 데이터 수집 모듈 (AI 비전 & GPS/IMU)
-from src.vision.vision_receiver import VisionReceiver
+from src.ai.vision_receiver import VisionReceiver
 from src.control.location import LocationMotionSensor
 
 # 4. 상태 판단 두뇌
