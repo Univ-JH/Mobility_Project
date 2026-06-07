@@ -17,9 +17,10 @@ from app.api.deps import get_current_user, get_device_auth
 
 router = APIRouter()
 
+# ── literal routes first (before parameterised) to prevent 405 shadowing ──
+
 @router.post("")
 async def register_device(device_in: DeviceCreate) -> Any:
-    """Register a new device."""
     device = await create_or_update_device(device_in)
     return create_success_response(
         data={"deviceId": device.deviceId, "currentPolicyVersion": device.currentPolicyVersion},
@@ -45,40 +46,13 @@ async def list_my_devices(user_id: str = Depends(get_current_user)) -> Any:
         message="디바이스 목록 조회 성공"
     )
 
-@router.delete("/{device_id}")
-async def deregister_device_route(device_id: str, user_id: str = Depends(get_current_user)) -> Any:
-    from app.repositories.device_repo import deregister_device
-    success = await deregister_device(device_id, user_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
-    return create_success_response(data={"deviceId": device_id}, message="기기 등록 해제 완료")
-
-@router.get("/{device_id}/status")
-async def read_device_status(device_id: str) -> Any:
-    """Read current status of a device."""
-    device = await get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
-        
-    return create_success_response(
-        data=DeviceStatusResponse(
-            state=device.currentState,
-            lastSeenAt=device.lastSeenAt,
-            helmetWorn=device.helmetWorn,
-            bleConnected=device.bleConnected,
-            currentPolicyVersion=device.currentPolicyVersion
-        ).model_dump()
-    )
-
 @router.post("/pair")
 async def pair_device(
-    request: DevicePairRequest, 
+    request: DevicePairRequest,
     user_id: str = Depends(get_current_user)
 ) -> Any:
-    """Pair a detected BLE device with the current user."""
     device = await get_device(request.deviceId)
     if not device:
-        # Create it if it doesn't exist
         device_in = DeviceCreate(
             deviceId=request.deviceId,
             deviceType=request.deviceType or "scooter",
@@ -87,37 +61,9 @@ async def pair_device(
         )
         device = await create_or_update_device(device_in)
     else:
-        # Update owner
         device.ownerUserId = user_id
         await device.save()
-        
     return create_success_response(data={"deviceId": device.deviceId}, message="기기 페어링 완료")
-
-@router.post("/{device_id}/unlock")
-async def unlock_device(
-    device_id: str,
-    request: DeviceUnlockRequest,
-    user_id: str = Depends(get_current_user)
-) -> Any:
-    """Unlock device from mobile app."""
-    device = await get_device(device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
-        
-    if device.ownerUserId != user_id:
-        raise HTTPException(status_code=403, detail="AUTH_FORBIDDEN")
-        
-    # Send unlock command via MQTT
-    await publish_control_command(device_id, "unlock", {"lat": request.lat, "lng": request.lng})
-    
-    # Optimistically set state to READY/RUNNING
-    device.currentState = DeviceState.READY
-    if request.lat is not None and request.lng is not None:
-        from app.repositories.models import Location
-        device.lastLocation = Location(lat=request.lat, lng=request.lng)
-    await device.save()
-    
-    return create_success_response(data={"state": device.currentState.value}, message="기기 잠금 해제 요청 전송")
 
 
 @router.post("/heartbeat")
@@ -147,3 +93,47 @@ async def list_available_devices(
         message="사용 가능한 디바이스 목록"
     )
 
+
+# ── parameterised routes after all literals ──
+
+@router.delete("/{device_id}")
+async def deregister_device_route(device_id: str, user_id: str = Depends(get_current_user)) -> Any:
+    from app.repositories.device_repo import deregister_device
+    success = await deregister_device(device_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
+    return create_success_response(data={"deviceId": device_id}, message="기기 등록 해제 완료")
+
+@router.get("/{device_id}/status")
+async def read_device_status(device_id: str) -> Any:
+    device = await get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
+    return create_success_response(
+        data=DeviceStatusResponse(
+            state=device.currentState,
+            lastSeenAt=device.lastSeenAt,
+            helmetWorn=device.helmetWorn,
+            bleConnected=device.bleConnected,
+            currentPolicyVersion=device.currentPolicyVersion
+        ).model_dump()
+    )
+
+@router.post("/{device_id}/unlock")
+async def unlock_device(
+    device_id: str,
+    request: DeviceUnlockRequest,
+    user_id: str = Depends(get_current_user)
+) -> Any:
+    device = await get_device(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
+    if device.ownerUserId != user_id:
+        raise HTTPException(status_code=403, detail="AUTH_FORBIDDEN")
+    await publish_control_command(device_id, "unlock", {"lat": request.lat, "lng": request.lng})
+    device.currentState = DeviceState.READY
+    if request.lat is not None and request.lng is not None:
+        from app.repositories.models import Location
+        device.lastLocation = Location(lat=request.lat, lng=request.lng)
+    await device.save()
+    return create_success_response(data={"state": device.currentState.value}, message="기기 잠금 해제 요청 전송")
