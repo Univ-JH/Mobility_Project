@@ -24,3 +24,13 @@ class DevicePairRequest(BaseModel):
 class DeviceUnlockRequest(BaseModel):
     lat: Optional[float] = None
     lng: Optional[float] = None
+
+class HeartbeatRequest(BaseModel):
+    deviceId: str = Field(..., example="pi_01")
+
+class AvailableDevice(BaseModel):
+    deviceId: str
+    lastSeenAt: Optional[datetime] = None
+
+class AvailableDevicesResponse(BaseModel):
+    devices: list[AvailableDevice]

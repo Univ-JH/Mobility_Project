@@ -32,6 +32,7 @@ class Device(Document):
     
     currentState: DeviceState = DeviceState.IDLE
     lastSeenAt: Optional[datetime] = None
+    lastHeartbeatAt: Optional[datetime] = None
     helmetWorn: bool = False
     bleConnected: bool = False
     speedKph: float = 0.0
