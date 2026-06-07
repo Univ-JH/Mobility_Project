@@ -17,7 +17,20 @@ class EmergencyResolveRequest(BaseModel):
 async def get_active_emergencies() -> Any:
     """Get all active emergencies (OPEN or ACKED)."""
     cases = await EmergencyCase.find({"status": {"$in": ["OPEN", "ACKED"]}}).sort(-EmergencyCase.openedAt).to_list()
-    return create_success_response(data=[case.model_dump() for case in cases], message="활성 응급 케이스 조회 성공")
+    return create_success_response(
+        data={
+            "emergencies": [
+                {
+                    "id": case.caseId,
+                    "status": case.status.lower(),
+                    "createdAt": case.openedAt.isoformat(),
+                    "reason": f"Emergency detected on device {case.deviceId}",
+                }
+                for case in cases
+            ]
+        },
+        message="활성 응급 케이스 조회 성공",
+    )
 
 @router.post("/{case_id}/ack")
 async def ack_emergency(case_id: str, admin_id: str = Depends(get_current_admin)) -> Any:

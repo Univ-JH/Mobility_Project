@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from app.repositories.models import User, Event, Device
-import pymongo
 
 async def get_user_by_id(user_id: str) -> Optional[User]:
     return await User.find_one(User.userId == user_id)
@@ -33,25 +32,30 @@ async def get_ride_history_for_user(user_id: str) -> List[Dict[str, Any]]:
         {"$sort": {"startTime": -1}}
     ]
     
-    res = await Event.aggregate(pipeline).to_list()
-    
+    cursor = Event.get_motor_collection().aggregate(pipeline)
+    res = await cursor.to_list(length=None)
+
     history = []
     for r in res:
-        # Avoid missing rideId logic if it's null
-        if not r["_id"]:
+        if not r.get("_id"):
             continue
-            
+
+        start = r.get("startTime")
+        end = r.get("endTime")
+        if not start:
+            continue
+
         duration = 0.0
-        if r["endTime"] and r["startTime"]:
-            delta = r["endTime"] - r["startTime"]
+        if end:
+            delta = end - start
             duration = delta.total_seconds() / 60.0
-            
+
         history.append({
             "rideId": r["_id"],
-            "startTime": r["startTime"],
-            "endTime": r["endTime"],
+            "startTime": start,
+            "endTime": end or start,
             "durationMinutes": duration,
-            "alertCount": r["alertCount"]
+            "alertCount": r.get("alertCount", 0)
         })
         
     return history
