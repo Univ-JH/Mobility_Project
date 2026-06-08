@@ -13,11 +13,13 @@ class Location(BaseModel):
 
 class User(Document):
     userId: Indexed(str, unique=True)
-    email: str
+    email: Indexed(str, unique=True)
     name: str
+    passwordHash: Optional[str] = None
+    isAdmin: bool = False
     safetyScore: float = 100.0
     appSettings: Dict[str, Any] = {}
-    
+
     createdAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

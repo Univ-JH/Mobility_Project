@@ -4,10 +4,15 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Mobility Safety System API"
     API_V1_STR: str = "/v1"
     
-    # Security (Pre-shared token for Prototype)
+    # Security
     PRE_SHARED_TOKEN: str = "proto-secret-token-123"
     SECRET_KEY: str = "super-secret-jwt-key"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # Admin seed credentials (first-run only)
+    ADMIN_EMAIL: str = "admin@mobility.local"
+    ADMIN_PASSWORD: str = "Admin1234!"
+    ADMIN_NAME: str = "관리자"
     
     # MongoDB
     MONGODB_URL: str = "mongodb://localhost:27017" # default for local dev

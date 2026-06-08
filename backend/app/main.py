@@ -13,21 +13,37 @@ from app.workers.mqtt_client import start_mqtt_worker
 
 from app.core.database import init_db
 
+async def _seed_admin() -> None:
+    from app.repositories.models import User
+    from app.core.security import hash_password
+    existing = await User.find_one(User.isAdmin == True)
+    if existing:
+        return
+    admin = User(
+        userId=str(uuid.uuid4()),
+        email=settings.ADMIN_EMAIL,
+        name=settings.ADMIN_NAME,
+        passwordHash=hash_password(settings.ADMIN_PASSWORD),
+        isAdmin=True,
+    )
+    await admin.insert()
+    print(f"[Seed] Admin created: {settings.ADMIN_EMAIL}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Lifespan events for FastAPI application.
-    Executes startup and shutdown logics.
-    """
     # 1. MongoDB Connection Setup (Beanie)
     client = await init_db()
-    
-    # 2. MQTT Worker Startup
+
+    # 2. Seed default admin if none exists
+    await _seed_admin()
+
+    # 3. MQTT Worker Startup
     mqtt_task = asyncio.create_task(start_mqtt_worker())
-    
+
     yield
-    
-    # 3. Graceful Shutdown
+
+    # 4. Graceful Shutdown
     mqtt_task.cancel()
     client.close()
 

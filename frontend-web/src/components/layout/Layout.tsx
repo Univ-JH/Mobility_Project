@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { setAdminToken } from '../../api/axiosInstance';
 
 export const Layout: React.FC = () => {
   return (
@@ -16,6 +17,16 @@ export const Layout: React.FC = () => {
             <div style={{ background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: '20px', border: 'var(--glass-border)', fontSize: '0.875rem' }}>
               <span style={{ color: 'var(--accent-success)', marginRight: '0.5rem' }}>●</span> 시스템 정상
             </div>
+            <button
+              onClick={() => { setAdminToken(null); window.location.reload(); }}
+              style={{
+                background: 'var(--bg-card)', border: 'var(--glass-border)',
+                borderRadius: '8px', padding: '0.4rem 0.875rem',
+                color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem',
+              }}
+            >
+              로그아웃
+            </button>
             <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
               A
             </div>

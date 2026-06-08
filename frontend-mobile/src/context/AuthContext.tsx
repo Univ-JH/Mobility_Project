@@ -8,6 +8,7 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, name: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -36,6 +37,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthToken(t);
   }, []);
 
+  const register = useCallback(async (email: string, name: string, password: string) => {
+    const res = await axiosInstance.post<never, { data: { accessToken: string } }>('/auth/register', { email, name, password });
+    const t: string = res.data.accessToken;
+    await AsyncStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+    setAuthToken(t);
+  }, []);
+
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem(TOKEN_KEY);
     setToken(null);
@@ -43,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ token, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ token, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

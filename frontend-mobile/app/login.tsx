@@ -69,6 +69,10 @@ export default function LoginScreen() {
             ? <ActivityIndicator color="#fff" />
             : <Text style={styles.buttonText}>로그인</Text>}
         </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push('/register')} style={styles.registerLink}>
+          <Text style={styles.registerText}>계정이 없으신가요? <Text style={styles.registerTextBold}>회원가입</Text></Text>
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
@@ -96,4 +100,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  registerLink: { alignItems: 'center', paddingVertical: 8 },
+  registerText: { color: '#64748b', fontSize: 14 },
+  registerTextBold: { color: '#3b82f6', fontWeight: '700' },
 });
