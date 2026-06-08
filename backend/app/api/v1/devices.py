@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Any
 
@@ -62,6 +63,8 @@ async def pair_device(
         device = await create_or_update_device(device_in)
     else:
         device.ownerUserId = user_id
+        device.lastSeenAt = datetime.now(timezone.utc)
+        device.updatedAt = datetime.now(timezone.utc)
         await device.save()
     return create_success_response(data={"deviceId": device.deviceId}, message="기기 페어링 완료")
 

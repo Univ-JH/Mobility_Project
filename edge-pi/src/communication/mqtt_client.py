@@ -4,7 +4,7 @@ from datetime import datetime
 
 # 분리된 설정값을 불러옵니다.
 from src.communication.comm_config import (
-    MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID,
+    MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID, PI_ID,
     MQTT_TOPIC_TELEMETRY, MQTT_TOPIC_STATUS,
 )
 
@@ -48,7 +48,7 @@ class BikeMQTTClient:
         helmet_id: 연결된 헬멧 BLE MAC 주소. 미연결 시 "unknown".
         """
         payload = {
-            "deviceId": MQTT_CLIENT_ID,              # Pi 기기 ID (MQTT 토픽 식별자)
+            "deviceId": PI_ID,                       # Pi 기기 ID
             "helmetId": helmet_id,                   # [CONTRACT-2] 헬멧 BLE MAC 주소
             "speed": round(speed, 2),
             "environment": road_type,
@@ -78,7 +78,7 @@ class BikeMQTTClient:
         백엔드가 헬멧 connectivity를 추적하는 데 사용.
         """
         payload = {
-            "deviceId":        MQTT_CLIENT_ID,
+            "deviceId":        PI_ID,
             "helmetId":        helmet_id,
             "helmet_connected": connected,
             "timestamp":       datetime.now().isoformat(),

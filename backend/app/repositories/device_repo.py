@@ -21,7 +21,8 @@ async def create_or_update_device(dto: DeviceCreate) -> Device:
         deviceId=dto.deviceId,
         deviceType=dto.deviceType,
         ownerUserId=dto.ownerUserId,
-        fwVersion=dto.fwVersion
+        fwVersion=dto.fwVersion,
+        lastSeenAt=datetime.now(timezone.utc),
     )
     await new_device.insert()
     return new_device
