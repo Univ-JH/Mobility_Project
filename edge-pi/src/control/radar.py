@@ -1,9 +1,12 @@
+import time
 import lgpio
-from .control_config import RADAR_PIN
+from .control_config import RADAR_CR_PIN, RADAR_DT_PIN
+
+_WARMUP_SEC = 2.0  # 레이더 초기화 시 HIGH 오출력 방지
+
 
 class MmwaveRadarSensor:
     def __init__(self):
-        """mmWave 센서 핀 초기화"""
         try:
             self.h = lgpio.gpiochip_open(4)
         except lgpio.error:
@@ -13,25 +16,28 @@ class MmwaveRadarSensor:
                 print(f"⚠️ [에러] 레이더 센서 GPIO 칩 연결 실패: {e}")
                 raise e
 
-        lgpio.gpio_claim_input(self.h, RADAR_PIN)
+        lgpio.gpio_claim_input(self.h, RADAR_CR_PIN, lgpio.SET_PULL_DOWN)
+        lgpio.gpio_claim_input(self.h, RADAR_DT_PIN, lgpio.SET_PULL_DOWN)
+        self._ready_at = time.time() + _WARMUP_SEC
         print("📡 후방 mmWave 레이더 센서 모듈 준비 완료")
 
     def check_rear_approach(self) -> bool:
-        """
-        후방에 사람이나 차량이 빠른 속도로 접근 중인지 확인합니다.
-        센서가 감지하면 HIGH(1)를 반환한다고 가정합니다.
-        """
+        """CR(근거리) 또는 DT(원거리) 중 하나라도 HIGH면 접근 감지."""
+        if time.time() < self._ready_at:
+            return False  # warm-up 중 오감지 차단
         try:
-            return lgpio.gpio_read(self.h, RADAR_PIN) == 1
+            cr = lgpio.gpio_read(self.h, RADAR_CR_PIN) == 1
+            dt = lgpio.gpio_read(self.h, RADAR_DT_PIN) == 1
+            return cr or dt
         except Exception:
             return False
 
     def cleanup(self):
-        """안전한 리소스 반환"""
         if hasattr(self, 'h'):
             try:
-                lgpio.gpio_free(self.h, RADAR_PIN)
+                lgpio.gpio_free(self.h, RADAR_CR_PIN)
+                lgpio.gpio_free(self.h, RADAR_DT_PIN)
                 lgpio.gpiochip_close(self.h)
                 print("🧹 레이더 센서 리소스 반환 완료")
-            except:
+            except Exception:
                 pass
