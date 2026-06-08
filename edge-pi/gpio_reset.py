@@ -38,20 +38,21 @@ def reset_all():
     h = _open_chip()
     errors = []
 
-    # 출력 핀 — LOW 설정 후 해제
-    for pin in OUTPUT_PINS:
-        try:
-            lgpio.gpio_claim_output(h, pin, 0)
-            print(f"[gpio_reset] GPIO{pin} → LOW")
-        except lgpio.error as e:
-            errors.append(f"GPIO{pin} claim_output 실패: {e}")
-
-    # 서보 PWM 명시적 정지 (duty=0)
+    # 서보 PWM 명시적 정지 — claim 전에 먼저 duty=0 송출 시도
     try:
         lgpio.tx_pwm(h, SERVO_PIN, PWM_FREQ, 0)
         print(f"[gpio_reset] GPIO{SERVO_PIN} PWM 정지")
     except lgpio.error as e:
         errors.append(f"GPIO{SERVO_PIN} PWM 정지 실패: {e}")
+
+    # 출력 핀 — claim 후 gpio_write로 LOW 강제 인가
+    for pin in OUTPUT_PINS:
+        try:
+            lgpio.gpio_claim_output(h, pin, 0)
+            lgpio.gpio_write(h, pin, 0)
+            print(f"[gpio_reset] GPIO{pin} → LOW (OFF)")
+        except lgpio.error as e:
+            errors.append(f"GPIO{pin} LOW 설정 실패: {e}")
 
     # 입력 핀 — claim 후 즉시 해제 (pull-down 제거)
     for pin in INPUT_PINS:
