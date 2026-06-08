@@ -7,21 +7,6 @@ export const axiosInstance = axios.create({
   timeout: 10000,
 });
 
-export const getAdminToken = (): string | null => localStorage.getItem('admin_token');
-export const setAdminToken = (token: string | null): void => {
-  if (token) localStorage.setItem('admin_token', token);
-  else localStorage.removeItem('admin_token');
-};
-
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = getAdminToken();
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-  },
-  (error) => Promise.reject(error),
-);
-
 axiosInstance.interceptors.response.use(
   (response) => response.data,
   (error) => {

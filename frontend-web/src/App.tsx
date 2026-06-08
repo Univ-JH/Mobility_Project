@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/layout/Layout';
@@ -7,8 +7,6 @@ import { LiveMap } from './screens/LiveMap';
 import { EventLogs } from './screens/EventLogs';
 import { Policies } from './screens/Policies';
 import { Emergencies } from './screens/Emergencies';
-import { AdminLogin } from './screens/AdminLogin';
-import { getAdminToken } from './api/axiosInstance';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,16 +18,6 @@ const queryClient = new QueryClient({
 });
 
 const App: React.FC = () => {
-  const [authed, setAuthed] = useState(() => !!getAdminToken());
-
-  if (!authed) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <AdminLogin onLogin={() => setAuthed(true)} />
-      </QueryClientProvider>
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
