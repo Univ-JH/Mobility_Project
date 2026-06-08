@@ -1,7 +1,6 @@
 #include <ArduinoBLE.h>
 #include <Arduino_LSM9DS1.h>
 
-const int BUZZER_PIN = 2;
 const int FSR_L_PIN  = A0;
 const int FSR_R_PIN  = A1;
 
@@ -22,9 +21,6 @@ const unsigned long FALL_REPEAT_LOCK_MS = 8000;
 // 100ms 주기 센서 처리
 const unsigned long LOOP_INTERVAL_MS  = 100;
 
-// Pi → Arduino 명령 코드 (comm_config.py CMD_* 와 동일)
-const uint8_t CMD_BUZZER_ALERT = 0x01;  // 후방 접근 경고
-
 uint32_t currentRideId  = 1000;
 uint32_t globalEventSeq = 0;
 
@@ -44,10 +40,6 @@ BLEByteCharacteristic statusCharacteristic(
 // [FIX BUG-1] 크기 13 → 14
 BLECharacteristic eventCharacteristic(
   "19B10002-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify, 14);
-// [BUG-I] Pi → Arduino 명령 수신 (Write, 1 byte)
-BLECharacteristic commandCharacteristic(
-  "19B10003-E8F2-537E-4F6C-D104768A1214", BLEWrite, 1);
-
 void sendEncodedEvent(uint8_t label, float impactG, float ax, float ay) {
   SafetyEventPayload payload;
   payload.schemaVersion = 1; // [FIX BUG-1]
@@ -85,8 +77,6 @@ void setup() {
   unsigned long t0 = millis();
   while (!Serial && millis() - t0 < 3000);
 
-  pinMode(BUZZER_PIN, OUTPUT);
-
   if (!IMU.begin()) {
     Serial.println("[ERR] IMU 초기화 실패");
     while (1);
@@ -105,7 +95,6 @@ void setup() {
   BLE.setAdvertisedService(helmetService);
   helmetService.addCharacteristic(statusCharacteristic);
   helmetService.addCharacteristic(eventCharacteristic);
-  helmetService.addCharacteristic(commandCharacteristic); // [BUG-I]
   BLE.addService(helmetService);
 
   statusCharacteristic.writeValue(0);
@@ -172,7 +161,6 @@ void loop() {
       // 라벨 5: 충돌 후 3초 이내 헬멧 탈착 감지
       if (wasCrashTriggered && (now - crashTime < 3000)) {
         sendEncodedEvent(5, 0, ax, ay);
-        tone(BUZZER_PIN, 3000, 1000);
       }
       wasCrashTriggered = false;
     }
@@ -180,15 +168,6 @@ void loop() {
 
   // ── 사고 감지 ────────────────────────────────────────────────────────────
   float impact = sqrt(ax * ax + ay * ay + az * az);
-
-  // ── Pi → Arduino 명령 처리 [BUG-I] ────────────────────────────────────
-  if (commandCharacteristic.written()) {
-    uint8_t cmd = commandCharacteristic.value()[0];
-    if (cmd == CMD_BUZZER_ALERT) {
-      tone(BUZZER_PIN, 2500, 300);
-      Serial.println("[CMD] 후방 경고 수신 — 버저 울림");
-    }
-  }
 
   static unsigned long fallStartTime      = 0;
   static unsigned long lastFallEventTime  = 0; // [FIX BUG-E]
@@ -208,7 +187,6 @@ void loop() {
     // [FIX BUG-2] 디바운스 추가 — 원본에는 없어 충돌 지속 중 100ms마다 이벤트 폭탄 발생
     if (now - lastCrashEventTime > SUDDEN_LOCK_MS) {
       sendEncodedEvent(2, impact, ax, ay);
-      tone(BUZZER_PIN, 2000, 500);
       lastCrashEventTime = now;
       wasCrashTriggered  = true;
       crashTime          = now;
@@ -219,7 +197,6 @@ void loop() {
   else if (ax > SUDDEN_THR && az > 0.7) {
     if (now - lastAccEventTime > SUDDEN_LOCK_MS) {
       sendEncodedEvent(3, impact, ax, ay);
-      tone(BUZZER_PIN, 1500, 200);
       lastAccEventTime = now;
     }
     fallStartTime = 0;
@@ -228,7 +205,6 @@ void loop() {
   else if (ax < -SUDDEN_THR && az > 0.7) {
     if (now - lastDecEventTime > SUDDEN_LOCK_MS) {
       sendEncodedEvent(4, impact, ax, ay);
-      tone(BUZZER_PIN, 1500, 200);
       lastDecEventTime = now;
     }
     fallStartTime = 0;
@@ -239,7 +215,6 @@ void loop() {
     if (fallStartTime == 0) fallStartTime = now;
     if (now - fallStartTime > FALL_CONFIRM_MS && now - lastFallEventTime > FALL_REPEAT_LOCK_MS) {
       sendEncodedEvent(1, impact, ax, ay);
-      tone(BUZZER_PIN, 1000, 500);
       lastFallEventTime = now;
       fallStartTime     = now;
     }

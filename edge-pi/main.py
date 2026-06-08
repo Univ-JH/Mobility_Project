@@ -5,11 +5,12 @@ from typing import Dict, Any
 # 1. 하드웨어 제어 모듈
 from src.control.servo_control import BrakeController
 from src.control.radar import MmwaveRadarSensor
+from src.control.led_warning import RearApproachLED
 
 # 2. 통신 모듈
 from src.communication.ble_manager import HelmetBLEManager
 from src.communication.mqtt_client import BikeMQTTClient
-from src.communication.comm_config import PI_ID, CMD_BUZZER_ALERT, BACKEND_URL, PRE_SHARED_TOKEN
+from src.communication.comm_config import PI_ID, BACKEND_URL, PRE_SHARED_TOKEN
 from src.communication import heartbeat
 
 # 3. 데이터 수집 모듈 (AI 비전 & GPS/IMU)
@@ -25,6 +26,7 @@ class SmartBikeSystem:
         
         self.brake = BrakeController()
         self.radar = MmwaveRadarSensor()
+        self.led = RearApproachLED()
         self.ble = HelmetBLEManager()
         self.mqtt = BikeMQTTClient()
         self.vision = VisionReceiver()
@@ -183,9 +185,11 @@ class SmartBikeSystem:
                             elif sensor_data["bike_shock"]:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
-                    # 후방 고속 접근 감지 시 Pi 레이더 부저 + 헬멧 버저 동시 경고
+                    # 후방 고속 접근 감지 시 전방 RGB LED 빨간색 경고
                     if sensor_data.get("rear_approach"):
-                        await self.ble.send_command(CMD_BUZZER_ALERT)
+                        self.led.warn_rear()
+                    else:
+                        self.led.clear()
 
                     # 비동기 격리 (브레이크 서보 모터)
                     await asyncio.to_thread(self._execute_brake_command, brake_level)
@@ -213,6 +217,7 @@ class SmartBikeSystem:
         self.brake.release_brake()
         self.brake.cleanup()
         self.radar.cleanup()
+        self.led.cleanup()
 
         self.location.stop()
         self.vision.stop()

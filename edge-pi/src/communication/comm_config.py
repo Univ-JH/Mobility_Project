@@ -15,12 +15,6 @@ SERVICE_UUID      = "19B10000-E8F2-537E-4F6C-D104768A1214"
 STATUS_CHAR_UUID  = "19B10001-E8F2-537E-4F6C-D104768A1214"  # 착용 상태 (1 byte)
 EVENT_CHAR_UUID   = "19B10002-E8F2-537E-4F6C-D104768A1214"  # 안전 이벤트 (14 bytes)
 
-# Characteristic UUID — Pi → Arduino (Write)  [BUG-I]
-COMMAND_CHAR_UUID = "19B10003-E8F2-537E-4F6C-D104768A1214"  # 제어 명령 (1 byte)
-
-# 명령 코드 (Pi → Arduino)
-CMD_BUZZER_ALERT  = 0x01  # 후방 접근 경고 — 헬멧 버저 울리기
-
 # 아두이노 C++ 구조체 데이터 규격 (총 14바이트)
 # < (리틀엔디안) / B (1바이트) / I (4바이트 정수)
 EVENT_STRUCT_FORMAT = "<BIIIB"
