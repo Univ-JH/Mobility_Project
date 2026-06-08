@@ -7,10 +7,17 @@ road_surface_test.py
 
 실행:
     python3 road_surface_test.py
+
+HEF 출력 포맷 (best.hef 기준):
+    best/conv109           (1, 104, 104, 32)  ← proto 마스크 텐서
+    best/format_conversion16  (1, 1, 38, 3549)  ← combined 앵커 텐서
+      38 = 4(bbox decoded) + 2(cls logits) + 32(mask coeffs)
+      3549 = 52×52 + 26×26 + 13×13  (입력 416×416 기준 전 stride 합)
 """
 
 import sys
 import time
+from collections import deque
 
 import cv2
 import numpy as np
@@ -26,153 +33,82 @@ from hailo_platform import (
     InferVStreams, InputVStreamParams, OutputVStreamParams, VDevice,
 )
 
-# ── 설정 ────────────────────────────────────────────────────────────────────
-HEF_PATH        = "src/ai/hef/best.hef"
-NUM_CLASSES     = 2
-ROAD_CLASS      = 0
-SIDEWALK_CLASS  = 1
-CONF_THR        = 0.40
-NMS_THR         = 0.50
-ROI_X           = (0.3, 0.7)   # 화면 가로 30~70%
-ROI_Y           = (0.6, 1.0)   # 화면 세로 60~100% (바퀴 앞 기준)
-
-# 시간적 안정화 윈도우 (연속 N프레임 다수결)
-WINDOW_SIZE     = 7
-SW_TRIGGER      = 0.5   # 인도 판정 비율 임계값
+# ── 설정 ─────────────────────────────────────────────────────────────────────
+HEF_PATH       = "src/ai/hef/best.hef"
+NUM_CLASSES    = 2
+ROAD_CLASS     = 0
+SIDEWALK_CLASS = 1
+CONF_THR       = 0.40          # 앵커 신뢰도 임계값
+ROI_X          = (0.3, 0.7)   # 화면 가로 30~70%
+ROI_Y          = (0.6, 1.0)   # 화면 세로 60~100% (바퀴 앞 기준)
+WINDOW_SIZE    = 7             # 시간적 안정화 프레임 수
+SW_TRIGGER     = 0.5           # 인도 판정 비율 임계값
+MAX_MASKS      = 60            # 클래스당 마스크 재구성 최대 개수 (속도 제한)
 # ─────────────────────────────────────────────────────────────────────────────
 
+_PROTO_KEY    = "best/conv109"
+_COMBINED_KEY = "best/format_conversion16"
 
-# ── 수학 헬퍼 ────────────────────────────────────────────────────────────────
-def _sigmoid(x):
+
+def _sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.clip(x, -50.0, 50.0)))
 
-def _softmax(x):
-    e = np.exp(x - np.max(x, axis=-1, keepdims=True))
-    return e / e.sum(axis=-1, keepdims=True)
 
-def _make_grid(h, w, stride):
-    yv, xv = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
-    return (np.stack((xv, yv), axis=-1).reshape(-1, 2) + 0.5) * stride
-
-def _dfl(raw, reg_max=16):
-    n = raw.shape[0]
-    x = _softmax(raw.reshape(n, 4, reg_max))
-    return (x * np.arange(reg_max, dtype=np.float32)).sum(axis=-1)
-
-def _dist2bbox(dist, grid):
-    return np.concatenate([grid - dist[:, :2], grid + dist[:, 2:]], axis=-1)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-# ── 출력 레이어 자동 탐지 ────────────────────────────────────────────────────
-def _detect_layers(res, input_h, input_w, num_classes):
+# ── 후처리: combined 텐서 → 픽셀 class_map ───────────────────────────────────
+def _postprocess(res: dict, input_h: int, input_w: int):
     """
-    YOLOv8-seg 출력 텐서 이름을 shape으로 자동 탐지.
-    Returns (proto_name, [(bbox_name, cls_name, mask_name, stride), ...])
+    Returns:
+        class_map  (input_h, input_w) int32   — 클래스 id, 미검출=-1
+        conf_map   (input_h, input_w) float32 — 픽셀별 신뢰도
     """
-    proto_h, proto_w = input_h // 4, input_w // 4
-    BBOX_CH, MASK_CH = 64, 32
+    # proto: (1, proto_h, proto_w, 32) → (proto_h, proto_w, 32)
+    proto     = res[_PROTO_KEY][0]
+    proto_h, proto_w = proto.shape[:2]
+    proto_flat = proto.reshape(-1, 32)          # (proto_h*proto_w, 32)
 
-    proto_name = None
-    heads = {}
+    # combined: (1, 1, 38, 3549) → (3549, 38)
+    # 38 = [0:4] bbox_decoded | [4:6] cls_logits | [6:38] mask_coeffs
+    data      = res[_COMBINED_KEY][0, 0].T      # (3549, 38)
+    cls_raw   = data[:, 4:6]                    # (3549, 2)
+    mask_coef = data[:, 6:38]                   # (3549, 32)
 
-    for name, tensor in res.items():
-        t = tensor[0] if tensor.ndim == 4 else tensor
-        if t.ndim != 3:
-            continue
-        h, w, c = t.shape
-
-        if c == MASK_CH and h == proto_h and w == proto_w:
-            proto_name = name
-            continue
-
-        for stride in [8, 16, 32]:
-            if h == input_h // stride and w == input_w // stride:
-                heads.setdefault(stride, {})
-                if c == BBOX_CH:
-                    heads[stride]["bbox"] = name
-                elif c == num_classes:
-                    heads[stride]["cls"] = name
-                elif c == MASK_CH:
-                    heads[stride]["mask"] = name
-
-    layers = []
-    for stride in sorted(heads):
-        h = heads[stride]
-        if "bbox" in h and "cls" in h and "mask" in h:
-            layers.append((h["bbox"], h["cls"], h["mask"], stride))
-
-    return proto_name, layers
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-# ── 세그멘테이션 후처리 ──────────────────────────────────────────────────────
-def _postprocess(res, proto_name, layers, input_h, input_w):
-    proto_h, proto_w = input_h // 4, input_w // 4
-    proto = res[proto_name][0]   # (proto_h, proto_w, 32)
-
-    all_bboxes, all_scores, all_cls, all_coeffs = [], [], [], []
-
-    for bbox_n, cls_n, mask_n, stride in layers:
-        bbox_t = res[bbox_n][0]   # (H, W, 64)
-        cls_t  = res[cls_n][0]    # (H, W, num_classes)
-        mask_t = res[mask_n][0]   # (H, W, 32)
-        H, W, _ = bbox_t.shape
-
-        scores = _sigmoid(cls_t.reshape(-1, NUM_CLASSES))
-        max_sc = scores.max(axis=-1)
-        cls_id = scores.argmax(axis=-1)
-
-        keep = max_sc > CONF_THR
-        if not keep.any():
-            continue
-
-        grid  = _make_grid(H, W, stride)[keep]
-        dist  = _dfl(bbox_t.reshape(-1, 64)[keep])
-        boxes = _dist2bbox(dist, grid)
-
-        all_bboxes.append(boxes)
-        all_scores.append(max_sc[keep])
-        all_cls.append(cls_id[keep])
-        all_coeffs.append(mask_t.reshape(-1, 32)[keep])
+    cls_scores = _sigmoid(cls_raw)              # (3549, 2)
+    max_scores = cls_scores.max(axis=1)         # (3549,)
+    cls_ids    = cls_scores.argmax(axis=1)      # (3549,)
 
     class_map = np.full((input_h, input_w), -1, dtype=np.int32)
     conf_map  = np.zeros((input_h, input_w), dtype=np.float32)
+    accum     = np.zeros((NUM_CLASSES, input_h, input_w), dtype=np.float32)
 
-    if not all_bboxes:
-        return class_map, conf_map
+    for cls_id in range(NUM_CLASSES):
+        mask_cls = (cls_ids == cls_id) & (max_scores > CONF_THR)
+        if not mask_cls.any():
+            continue
 
-    bboxes  = np.concatenate(all_bboxes)
-    scores  = np.concatenate(all_scores)
-    cls_ids = np.concatenate(all_cls)
-    coeffs  = np.concatenate(all_coeffs)
+        scores_here = max_scores[mask_cls]
+        coeffs_here = mask_coef[mask_cls]
 
-    xywh = [[b[0], b[1], b[2] - b[0], b[3] - b[1]] for b in bboxes]
-    idxs = cv2.dnn.NMSBoxes(xywh, scores.tolist(), CONF_THR, NMS_THR)
-    if len(idxs) == 0:
-        return class_map, conf_map
-    idxs = np.array(idxs).flatten()
+        # 신뢰도 높은 순 MAX_MASKS개만 처리 (성능 제한)
+        if len(scores_here) > MAX_MASKS:
+            top = np.argpartition(scores_here, -MAX_MASKS)[-MAX_MASKS:]
+            coeffs_here = coeffs_here[top]
 
-    accum = np.zeros((NUM_CLASSES, input_h, input_w), dtype=np.float32)
-    proto_flat = proto.reshape(-1, 32)
+        # 마스크 재구성: (N, 32) @ (32, proto_h*proto_w) → (N, proto_h, proto_w)
+        raw = _sigmoid(coeffs_here @ proto_flat.T).reshape(-1, proto_h, proto_w)
 
-    for i in idxs:
-        cls   = int(cls_ids[i])
-        raw   = coeffs[i] @ proto_flat.T
-        mask  = _sigmoid(raw.reshape(proto_h, proto_w))
-        mask_up = cv2.resize(mask, (input_w, input_h), interpolation=cv2.INTER_LINEAR)
-        accum[cls] = np.maximum(accum[cls], mask_up)
+        for mask in raw:
+            mask_up = cv2.resize(mask, (input_w, input_h), interpolation=cv2.INTER_LINEAR)
+            accum[cls_id] = np.maximum(accum[cls_id], mask_up)
 
     valid = accum.max(axis=0) > CONF_THR
     class_map[valid] = accum[:, valid].argmax(axis=0)
     conf_map[valid]  = accum[:, valid].max(axis=0)
 
     return class_map, conf_map
-# ─────────────────────────────────────────────────────────────────────────────
 
 
-# ── ROI 판별 ─────────────────────────────────────────────────────────────────
-def _classify_roi(class_map, conf_map):
+# ── ROI 픽셀 다수결 ───────────────────────────────────────────────────────────
+def _classify_roi(class_map: np.ndarray, conf_map: np.ndarray):
     h, w = class_map.shape
     x1, x2 = int(w * ROI_X[0]), int(w * ROI_X[1])
     y1, y2 = int(h * ROI_Y[0]), int(h * ROI_Y[1])
@@ -180,40 +116,38 @@ def _classify_roi(class_map, conf_map):
     roi_cls  = class_map[y1:y2, x1:x2]
     roi_conf = conf_map[y1:y2, x1:x2]
 
-    road_px = int(((roi_cls == ROAD_CLASS)     & (roi_conf > CONF_THR)).sum())
-    sw_px   = int(((roi_cls == SIDEWALK_CLASS) & (roi_conf > CONF_THR)).sum())
+    road_mask = (roi_cls == ROAD_CLASS)     & (roi_conf > CONF_THR)
+    sw_mask   = (roi_cls == SIDEWALK_CLASS) & (roi_conf > CONF_THR)
+
+    road_px = int(road_mask.sum())
+    sw_px   = int(sw_mask.sum())
 
     if road_px == 0 and sw_px == 0:
         return "UNKNOWN", 0.0
     if road_px >= sw_px:
-        mean_conf = float(roi_conf[(roi_cls == ROAD_CLASS) & (roi_conf > CONF_THR)].mean())
-        return "ROAD", mean_conf
-    else:
-        mean_conf = float(roi_conf[(roi_cls == SIDEWALK_CLASS) & (roi_conf > CONF_THR)].mean())
-        return "SIDEWALK", mean_conf
-# ─────────────────────────────────────────────────────────────────────────────
+        return "ROAD",     float(roi_conf[road_mask].mean())
+    return "SIDEWALK", float(roi_conf[sw_mask].mean())
 
 
-# ── 안정화 윈도우 ─────────────────────────────────────────────────────────────
+# ── 시간적 안정화 ─────────────────────────────────────────────────────────────
 class _Stabilizer:
     def __init__(self):
-        from collections import deque
         self._buf = deque(maxlen=WINDOW_SIZE)
 
-    def update(self, label, conf):
+    def update(self, label: str, conf: float):
         self._buf.append((label, conf))
         n      = len(self._buf)
         sw_cnt = sum(1 for l, _ in self._buf if l in ("SIDEWALK", "UNKNOWN"))
         if sw_cnt / n >= SW_TRIGGER:
-            sw_confs = [c for l, c in self._buf if l == "SIDEWALK"]
-            return "SIDEWALK", float(np.mean(sw_confs)) if sw_confs else 0.3
-        rd_confs = [c for l, c in self._buf if l == "ROAD"]
-        return "ROAD", float(np.mean(rd_confs)) if rd_confs else 0.3
-# ─────────────────────────────────────────────────────────────────────────────
+            sw_c = [c for l, c in self._buf if l == "SIDEWALK"]
+            return "SIDEWALK", float(np.mean(sw_c)) if sw_c else 0.3
+        rd_c = [c for l, c in self._buf if l == "ROAD"]
+        return "ROAD", float(np.mean(rd_c)) if rd_c else 0.3
 
 
+# ── 메인 ─────────────────────────────────────────────────────────────────────
 def main():
-    # ── 카메라 열기 ──────────────────────────────────────────────────────────
+    # 카메라 열기
     if _PICAM_OK:
         cam = Picamera2()
         cam.configure(cam.create_video_configuration(
@@ -234,9 +168,9 @@ def main():
         is_picam = False
         print("카메라: OpenCV VideoCapture")
 
-    # ── HEF 로드 ─────────────────────────────────────────────────────────────
+    # HEF 로드
     print(f"HEF 로드 중: {HEF_PATH}")
-    hef = HEF(HEF_PATH)
+    hef   = HEF(HEF_PATH)
     info  = hef.get_input_vstream_infos()[0]
     shape = info.shape
     input_h, input_w = (shape[1], shape[2]) if len(shape) == 4 else (shape[0], shape[1])
@@ -255,15 +189,19 @@ def main():
             with ng.activate(ng.create_params()):
                 with InferVStreams(ng, in_p, out_p) as pipeline:
 
-                    # 출력 레이어 이름 자동 탐지 (dry-run 1회)
+                    # 출력 키 검증
                     dummy = np.zeros((1, input_h, input_w, 3), dtype=np.uint8)
                     dry   = pipeline.infer({info.name: dummy})
-                    proto_name, layers = _detect_layers(dry, input_h, input_w, NUM_CLASSES)
 
-                    if proto_name is None or not layers:
-                        print("ERROR: 출력 레이어 자동 탐지 실패.")
-                        print("출력 텐서 목록:", [(k, v.shape) for k, v in dry.items()])
+                    if _PROTO_KEY not in dry or _COMBINED_KEY not in dry:
+                        print("ERROR: 예상 출력 텐서를 찾을 수 없습니다.")
+                        print("실제 출력 목록:")
+                        for k, v in dry.items():
+                            print(f"  {k}: {v.shape}")
                         sys.exit(1)
+
+                    print(f"proto  텐서: {_PROTO_KEY} {dry[_PROTO_KEY].shape}")
+                    print(f"combined 텐서: {_COMBINED_KEY} {dry[_COMBINED_KEY].shape}\n")
 
                     t_prev = time.perf_counter()
 
@@ -276,7 +214,7 @@ def main():
                             if not ret:
                                 continue
 
-                        # 전처리 (리사이즈 + BGR→RGB)
+                        # 전처리: 리사이즈 + BGR→RGB
                         img = cv2.cvtColor(
                             cv2.resize(frame, (input_w, input_h)),
                             cv2.COLOR_BGR2RGB,
@@ -285,8 +223,8 @@ def main():
                         # NPU 추론
                         res = pipeline.infer({info.name: np.expand_dims(img, 0)})
 
-                        # 세그멘테이션 후처리
-                        class_map, conf_map = _postprocess(res, proto_name, layers, input_h, input_w)
+                        # 후처리 → class_map
+                        class_map, conf_map = _postprocess(res, input_h, input_w)
 
                         # ROI 픽셀 다수결
                         raw_label, raw_conf = _classify_roi(class_map, conf_map)
@@ -294,12 +232,12 @@ def main():
                         # 시간적 안정화
                         label, conf = stabilizer.update(raw_label, raw_conf)
 
-                        # FPS
+                        # FPS 계산
                         now    = time.perf_counter()
                         fps    = 1.0 / max(now - t_prev, 1e-6)
                         t_prev = now
 
-                        # ── 콘솔 출력 ────────────────────────────────────────
+                        # 콘솔 출력
                         print(f"[{label:<8}]  신뢰도: {conf:.3f}  FPS: {fps:5.1f}")
 
     except KeyboardInterrupt:
