@@ -69,10 +69,29 @@ class SmartBikeSystem:
             "bike_shock": loc_data.get("bike_shock", False)
         }
 
-    def _execute_brake_command(self, brake_level: str):
-        """판단 결과에 따라 실제 서보 모터를 움직입니다."""
-        if brake_level in ("level_emergency", "level_2", "level_1"):
+    def _execute_brake_command(self, brake_level: str, current_speed: float = 0.0):
+        """
+        판단 결과와 현재 속도에 따라 실제 서보 모터를 움직입니다.
+        (함수 호출 시 _execute_brake_command(level, speed) 형태로 속도를 넘겨주어야 합니다)
+        """
+        
+        # 🚨 1. 생명과 직결된 긴급 상황 (헬멧 충격, 낙차 등)
+        # -> 속도 상관없이 무조건 30도 풀브레이크!
+        if brake_level == "level_emergency":
             self.brake.pull_brake()
+            return
+            
+        # ⚠️ 2. 주의 및 경고 상황 (인도 진입, 카메라 가려짐, 후방 차량 접근)
+        # -> 시속 5km 이상으로 달리고 있을 때만 위험하다고 판단하여 30도 브레이크 작동
+        elif brake_level in ("level_1", "level_2"):
+            if current_speed > 5.0:
+                self.brake.pull_brake()
+            else:
+                # 속도가 느리면(예: 천천히 인도로 진입 중) 브레이크를 잡지 않음
+                self.brake.release_brake()
+                
+        # 🟢 3. 정상 주행
+        # -> 110도 유지
         elif brake_level == "level_0":
             self.brake.release_brake()
 
@@ -192,7 +211,7 @@ class SmartBikeSystem:
                         self.led.clear()
 
                     # 비동기 격리 (브레이크 서보 모터)
-                    await asyncio.to_thread(self._execute_brake_command, brake_level)
+                    await asyncio.to_thread(self._execute_brake_command, brake_level, sensor_data.get("speed", 0.0))
                     
                     # 서버(MQTT) 전송
                     self._send_mqtt_logs(brake_level, reason, sensor_data)
