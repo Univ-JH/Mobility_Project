@@ -97,5 +97,5 @@ async def get_available_devices(user_id: str) -> list[Device]:
     threshold = datetime.now(timezone.utc) - timedelta(seconds=60)
     return await Device.find(
         Device.lastHeartbeatAt >= threshold,
-        Device.ownerUserId != user_id,
+        Device.ownerUserId == "",
     ).to_list()

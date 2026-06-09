@@ -108,7 +108,7 @@ async def deregister_device_route(device_id: str, user_id: str = Depends(get_cur
     return create_success_response(data={"deviceId": device_id}, message="기기 등록 해제 완료")
 
 @router.get("/{device_id}/status")
-async def read_device_status(device_id: str) -> Any:
+async def read_device_status(device_id: str, _: str = Depends(get_current_user)) -> Any:
     device = await get_device(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")

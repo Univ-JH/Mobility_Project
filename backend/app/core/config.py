@@ -4,9 +4,9 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Mobility Safety System API"
     API_V1_STR: str = "/v1"
     
-    # Security
-    PRE_SHARED_TOKEN: str = "proto-secret-token-123"
-    SECRET_KEY: str = "super-secret-jwt-key"
+    # Security — no defaults; must be set in .env
+    PRE_SHARED_TOKEN: str
+    SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     # Admin seed credentials (first-run only)

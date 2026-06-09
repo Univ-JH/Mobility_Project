@@ -27,7 +27,7 @@ async def trigger_emergency(
         rideId=ride_id,
         seq=1,
         eventType="user_sos",
-        severity="critical",
+        severity="high",
         confidence=1.0,
         payload={
             "reason": request.reason,

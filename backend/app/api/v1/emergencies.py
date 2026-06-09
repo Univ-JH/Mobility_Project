@@ -1,13 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from typing import Any
 from datetime import datetime, timezone
 
 from app.schemas.common import create_success_response
-from app.api.deps import get_current_admin, get_current_user
 from app.repositories.models import EmergencyCase
 from pydantic import BaseModel
 
-router = APIRouter(dependencies=[Depends(get_current_admin)])
+router = APIRouter()
 
 class EmergencyResolveRequest(BaseModel):
     resolutionType: str
@@ -33,14 +32,13 @@ async def get_active_emergencies() -> Any:
     )
 
 @router.post("/{case_id}/ack")
-async def ack_emergency(case_id: str, admin_id: str = Depends(get_current_admin)) -> Any:
+async def ack_emergency(case_id: str) -> Any:
     """Acknowledge an emergency case."""
     case = await EmergencyCase.find_one(EmergencyCase.caseId == case_id)
     if not case:
         raise HTTPException(status_code=404, detail="RESOURCE_NOT_FOUND")
-        
+
     case.status = "ACKED"
-    case.ackBy = admin_id
     case.ackAt = datetime.now(timezone.utc)
     await case.save()
     

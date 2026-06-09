@@ -7,15 +7,22 @@ from app.repositories.event_repo import save_event_idempotent
 from app.repositories.device_repo import update_device_status
 from app.domain.states import DeviceState
 
+SUPPORTED_SCHEMA_VERSIONS = {1}
+
 async def handle_mqtt_message(topic: str, payload: Dict[str, Any]):
     """
     Validates payload using Pydantic, normalizes it, and saves to MongoDB.
     """
+    schema_version = payload.get("schemaVersion")
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        print(f"[unsupported_schema] topic={topic} schemaVersion={schema_version!r} — dropped")
+        return
+
     try:
         if topic.endswith("/telemetry"):
             data = TelemetryPayload(**payload)
             await process_telemetry(data)
-            
+
         elif topic.endswith("/event"):
             data = EventPayload(**payload)
             await process_event(data)
@@ -36,6 +43,7 @@ async def process_telemetry(data: TelemetryPayload):
     device = await get_device(data.deviceId)
     if not device:
         print(f"[Telemetry Dropped] Unknown device: {data.deviceId}")
+        return
     else:
         await update_device_status(
             device_id=data.deviceId,

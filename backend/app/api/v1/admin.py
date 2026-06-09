@@ -1,18 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from typing import Any, Optional
 
-from app.api.deps import get_current_admin
 from app.schemas.common import create_success_response
 from app.services import admin_service
 
 router = APIRouter()
-
-# Apply get_current_admin dependency to all routes in this router
-# by passing it in router config or router inclusion. We will do it in router.py 
-# but it's safer to add dependencies=[Depends(get_current_admin)] directly to router init.
-
-router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 @router.get("/stats")
 async def read_dashboard_stats() -> Any:
