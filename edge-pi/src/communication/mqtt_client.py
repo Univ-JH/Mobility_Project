@@ -30,10 +30,12 @@ class BikeMQTTClient:
     def start(self):
         try:
             print(f"🌐 [MQTT] {MQTT_BROKER} 연결 시도 중...")
-            self.client.connect(MQTT_BROKER, MQTT_PORT, 60)
+            # 부팅 시 인터넷이 아직 안 잡혀있어도 에러로 튕기지 않고, 
+            # 백그라운드에서 연결될 때까지 자동으로 재시도하도록 동기 connect를 connect_async로 변경합니다.
+            self.client.connect_async(MQTT_BROKER, MQTT_PORT, 60)
             self.client.loop_start()  # 백그라운드 스레드 시작
         except Exception as e:
-            print(f"⚠️ [MQTT] 시작 에러: {e}")
+            print(f"⚠️ [MQTT] 시작 에러 (네트워크 상태 확인 필요): {e}")
 
     def send_bike_state(self, speed: float, road_type: str, lat: float, lon: float,
                         arduino_seq: int, is_worn: bool, is_accident: bool,
