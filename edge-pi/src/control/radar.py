@@ -20,8 +20,8 @@ class MmwaveRadarSensor:
             self.h = lgpio.gpiochip_open(0)
             
         # CR(근거리)과 DT(원거리) 핀 모두 입력(Input) 모드로 설정
-        lgpio.gpio_claim_input(self.h, RADAR_CR_PIN)
-        lgpio.gpio_claim_input(self.h, RADAR_DT_PIN)
+        lgpio.gpio_claim_input(self.h, RADAR_CR_PIN, lgpio.SET_PULL_DOWN)
+        lgpio.gpio_claim_input(self.h, RADAR_DT_PIN, lgpio.SET_PULL_DOWN)
         print(f"📡 [레이더] mmWave 초기화 완료 (근거리 핀:{RADAR_CR_PIN}, 원거리 핀:{RADAR_DT_PIN})")
 
     def check_rear_approach(self):
