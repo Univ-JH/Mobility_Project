@@ -3,13 +3,15 @@ import time
 
 def main():
     print("=" * 60)
-    print("📡 DFRobot mmWave 레이더 시리얼(UART) 데이터 수신 테스트")
+    print("📡 mmWave 레이더 시리얼(UART) 데이터 수신 최종 테스트")
     print("=" * 60)
+    print("⚠️ 주의: 센서 뒷면의 DIP 스위치가 반드시 'UART'로 되어 있어야 합니다!\n")
     
     try:
-        # GPS가 쓰던 포트(/dev/serial0)를 레이더가 임시로 사용합니다 (통신속도 9600)
+        # GPS가 쓰던 포트를 빌려 9600 속도로 연결 (센서 기본 속도)
         ser = serial.Serial('/dev/serial0', 9600, timeout=1)
-        print("✅ 시리얼 포트 접속 성공! 센서 데이터를 기다립니다...\n")
+        ser.reset_input_buffer()
+        print("✅ 포트 접속 성공! 센서 데이터를 기다립니다...")
     except Exception as e:
         print(f"❌ 포트 열기 실패: {e}")
         return
@@ -19,10 +21,10 @@ def main():
             if ser.in_waiting > 0:
                 raw_data = ser.read(ser.in_waiting)
                 
-                # 센서가 보내는 데이터가 알 수 없는 헥사(HEX) 코드일 수 있으므로 변환
+                # 1. 헥사(HEX) 코드 형태로 출력 (데이터 프레임 확인용)
                 hex_data = ' '.join([f"{b:02X}" for b in raw_data])
                 
-                # 사람이 읽을 수 있는 텍스트가 섞여 있다면 같이 출력
+                # 2. 텍스트 형태로 출력 (ASCII 문자가 섞여 있을 경우)
                 text_data = "".join([chr(b) if 32 <= b <= 126 else "." for b in raw_data])
                 
                 print(f"📦 [HEX 데이터]: {hex_data}")
