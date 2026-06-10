@@ -1,10 +1,5 @@
 """
-mmWave 레이더 센서 모듈 테스트
-- GPIO 칩 초기화
-- CR(근거리)/DT(원거리) 핀 상태 읽기
-- 10초간 실시간 감지 모니터링
-
-실행: python -m tests.test_radar  (edge-pi/ 루트에서, 라즈베리파이 필수)
+mmWave 레이더 센서 모듈 테스트 (거리/핀별 상세 감지)
 """
 import sys
 import os
@@ -14,8 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.control.control_config import RADAR_CR_PIN, RADAR_DT_PIN
 
-MONITOR_SEC = 10
-
+MONITOR_SEC = 20  # 테스트 시간 20초로 연장
 
 def test_gpio_init():
     print("\n[1] GPIO 초기화")
@@ -34,11 +28,8 @@ def test_gpio_init():
         print(f"  FAIL — 초기화 실패: {e}")
         return None
 
-
 def test_warmup_suppression(sensor):
-    """웜업 중 False 반환 검증"""
     print("\n[2] 웜업 억제 검증")
-    # _ready_at이 아직 미래인 경우 check_rear_approach()는 반드시 False
     result = sensor.check_rear_approach()
     print(f"  웜업 직후 감지값: {result}  (False 이어야 함)")
     if not result:
@@ -46,38 +37,55 @@ def test_warmup_suppression(sensor):
     else:
         print("  FAIL — 웜업 중 감지 출력 (오감지 위험)")
 
-
 def test_realtime_monitor(sensor):
-    print(f"\n[3] 실시간 감지 모니터링 ({MONITOR_SEC}초) — 레이더 앞에 손을 가져다 대보세요")
-    time.sleep(2.1)  # 웜업 대기
+    print(f"\n[3] 실시간 거리별 감지 모니터링 ({MONITOR_SEC}초)")
+    print("  ➔ 멀리서부터 레이더 쪽으로 천천히 다가와 보세요!")
+    time.sleep(2.1) 
 
     detected_count = 0
     start = time.time()
+    
     while time.time() - start < MONITOR_SEC:
-        approach = sensor.check_rear_approach()
-        status = "🔴 접근 감지" if approach else "🟢 이상 없음"
-        print(f"\r  {status}  (경과: {time.time()-start:.1f}s)", end="", flush=True)
-        if approach:
-            detected_count += 1
+        if hasattr(sensor, 'get_detailed_status'):
+            cr_on, dt_on = sensor.get_detailed_status()
+            
+            if cr_on and dt_on:
+                status = "🔴 [매우 근접] CR + DT 동시 감지!!"
+            elif dt_on:
+                status = "🟡 [원거리 접근] DT 핀에서 먼저 감지!"
+            elif cr_on:
+                status = "🟠 [초근접] CR 핀만 감지 중!"
+            else:
+                status = "🟢 이상 없음 (감지 안 됨)"
+            
+            if cr_on or dt_on:
+                detected_count += 1
+        else:
+            # 예비용 코드
+            approach = sensor.check_rear_approach()
+            status = "🔴 접근 감지" if approach else "🟢 이상 없음"
+            if approach:
+                detected_count += 1
+
+        # 터미널 창에 이전 줄을 덮어쓰며 실시간 출력
+        print(f"\r  {status:<30} (경과: {time.time()-start:.1f}s)   ", end="", flush=True)
         time.sleep(0.2)
 
-    print(f"\n  감지 횟수: {detected_count}회 / {int(MONITOR_SEC/0.2)}샘플")
+    print(f"\n\n  총 감지 횟수: {detected_count}회")
     if detected_count > 0:
         print("  PASS — 접근 감지 이벤트 발생")
     else:
-        print("  INFO — 감지 없음 (레이더 앞 물체 없음 — 수동 확인 필요)")
-
+        print("  INFO — 감지 없음")
 
 def main():
     print("=" * 50)
-    print("mmWave 레이더 센서 모듈 테스트")
+    print("mmWave 레이더 센서 거리 확장 모듈 테스트")
     print("=" * 50)
     sensor = test_gpio_init()
     if sensor:
         test_warmup_suppression(sensor)
         test_realtime_monitor(sensor)
         sensor.cleanup()
-
 
 if __name__ == "__main__":
     main()
