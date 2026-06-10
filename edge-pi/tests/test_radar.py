@@ -1,35 +1,49 @@
-import smbus2
+import sys
+import os
 import time
 
-def scan_i2c():
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+MONITOR_SEC = 60
+
+def main():
     print("=" * 60)
-    print("📡 mmWave 레이더 I2C 모드 스캔 테스트")
+    print("📡 mmWave 레이더 I2C 실시간 감지 테스트")
     print("=" * 60)
     
     try:
-        bus = smbus2.SMBus(1)
-        print("✅ I2C 버스 오픈 성공! 센서 주소를 탐색합니다...\n")
+        from src.control.radar import MmwaveRadarSensor
+        sensor = MmwaveRadarSensor()
+        if not sensor.bus:
+            print("❌ 센서 초기화에 실패했습니다.")
+            return
     except Exception as e:
-        print(f"❌ I2C 버스 열기 실패: {e}")
-        print("💡 터미널에 'sudo raspi-config'를 입력하고 [Interfacing Options] -> [I2C]를 Enabled로 켜주세요.")
+        print(f"  FAIL — 에러: {e}")
         return
 
-    found = []
-    for addr in range(0x03, 0x78):
-        try:
-            # 해당 주소에 말을 걸어보고 응답이 오면 리스트에 추가
-            bus.read_byte(addr)
-            found.append(addr)
-            print(f"🎉 빙고! I2C 주소 [ 0x{addr:02X} ] 에서 레이더 센서를 발견했습니다!")
-        except Exception:
-            pass
-
-    if not found:
-        print("❌ 아무 장치도 찾지 못했습니다.")
-        print("💡 [확인사항] d/t 선이 물리 3번에, c/r 선이 물리 5번에 정확히 꽂혀있는지 핀 위치를 다시 확인해주세요.")
-    else:
-        print("\n🚀 [대성공] 레이더가 I2C 모드로 완벽하게 살아있습니다!")
-        print("위에서 발견된 '0xOO' 주소를 알려주시면, 그 주소에 맞춰 레이더 감지 코드를 바로 완성해 드립니다.")
+    print(f"\n[테스트 시작] {MONITOR_SEC}초 동안 센서 앞을 움직여보세요!")
+    print("💡 멀리 떨어졌다가 가까이 다가오면서 숫자가 어떻게 변하는지 관찰하세요.\n")
+    time.sleep(2.0)
+    
+    start = time.time()
+    try:
+        while time.time() - start < MONITOR_SEC:
+            # I2C 데이터 읽어오기
+            val = sensor.get_raw_status()
+            
+            # 보통 0이면 없음, 1 이상이면 감지됨
+            if val == 0:
+                mark = "⚪ (안전 / 사람 없음)"
+            else:
+                mark = f"🔴 [접근 감지됨!] (신호값: {val})"
+            
+            print(f"\r  [I2C 수신] 데이터: {val:03d} {mark}   (남은시간: {MONITOR_SEC - int(time.time()-start)}초)     ", end="", flush=True)
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        pass
+        
+    print("\n\n🛑 테스트 종료")
+    sensor.cleanup()
 
 if __name__ == "__main__":
-    scan_i2c()
+    main()
