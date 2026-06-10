@@ -2,16 +2,14 @@ import time
 import threading
 import lgpio
 
-try:
-    from .control_config import RADAR_CR_PIN, RADAR_DT_PIN
-except ImportError:
-    RADAR_CR_PIN = 4
-    RADAR_DT_PIN = 27
+# 사용자님께서 확인해주신 완벽한 하드웨어 핀맵 영구 적용
+RADAR_CR_PIN = 4   # 물리 7번 핀 (c/r)
+RADAR_DT_PIN = 27  # 물리 13번 핀 (d/t)
 
 class MmwaveRadarSensor:
     def __init__(self):
         self.lock = threading.Lock()
-        # 웜업 시간 (전원이 켜지고 전파가 안정화되는 시간 2초 대기)
+        # 전원 인가 후 센서 안정화 대기 시간
         self._ready_at = time.time() + 2.0
         
         try:
@@ -19,35 +17,29 @@ class MmwaveRadarSensor:
         except lgpio.error:
             self.h = lgpio.gpiochip_open(0)
             
-        # CR(근거리)과 DT(원거리) 핀 모두 입력(Input) 모드로 설정
+        # 노이즈(플로팅) 방지를 위해 SET_PULL_DOWN을 적용하여 입력 모드 설정
         lgpio.gpio_claim_input(self.h, RADAR_CR_PIN, lgpio.SET_PULL_DOWN)
         lgpio.gpio_claim_input(self.h, RADAR_DT_PIN, lgpio.SET_PULL_DOWN)
-        print(f"📡 [레이더] mmWave 초기화 완료 (근거리 핀:{RADAR_CR_PIN}, 원거리 핀:{RADAR_DT_PIN})")
+        print(f"📡 [레이더] 하드웨어 핀 세팅 완료 (c/r: BCM {RADAR_CR_PIN}, d/t: BCM {RADAR_DT_PIN})")
+
+    def get_raw_status(self):
+        """디버깅 전용: 센서가 뿜어내는 0과 1이라는 전기 신호를 날것 그대로 반환합니다."""
+        with self.lock:
+            cr_val = lgpio.gpio_read(self.h, RADAR_CR_PIN)
+            dt_val = lgpio.gpio_read(self.h, RADAR_DT_PIN)
+            return cr_val, dt_val
 
     def check_rear_approach(self):
-        """메인 시스템에서 호출: 원거리/근거리 어디든 걸리면 True 반환 (감지 거리 확장)"""
+        """메인 시스템 호출용"""
         if time.time() < self._ready_at:
             return False
             
         with self.lock:
             cr_detected = lgpio.gpio_read(self.h, RADAR_CR_PIN) == 1
             dt_detected = lgpio.gpio_read(self.h, RADAR_DT_PIN) == 1
-            
-            # 둘 중 하나라도 걸리면 접근으로 판단!
             return cr_detected or dt_detected
-
-    def get_detailed_status(self):
-        """테스트 전용: 근거리, 원거리 핀이 각각 어떤 상태인지 상세 반환"""
-        if time.time() < self._ready_at:
-            return False, False
-            
-        with self.lock:
-            cr_detected = lgpio.gpio_read(self.h, RADAR_CR_PIN) == 1
-            dt_detected = lgpio.gpio_read(self.h, RADAR_DT_PIN) == 1
-            return cr_detected, dt_detected
 
     def cleanup(self):
         lgpio.gpio_free(self.h, RADAR_CR_PIN)
         lgpio.gpio_free(self.h, RADAR_DT_PIN)
         lgpio.gpiochip_close(self.h)
-        print("🧹 [레이더] 리소스 안전 반환 완료")
