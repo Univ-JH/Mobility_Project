@@ -7,7 +7,7 @@
 const int FSR_PIN = A0;        // 단일 압력 센서 꼽는 핀 (A0로 통합)
 
 const int PRES_THR = 300;      // 착용 판정 기준 (센서 값이 300보다 커야 함)
-const long CONFIRM_MS = 2000;  // 착용 확인 대기시간 (2초 동안 쓰고 있어야 "착용 완료")
+const long CONFIRM_MS = 1000;  // 착용 확인 대기시간 (1초 동안 쓰고 있어야 "착용 완료")
 const long DETACH_MS = 3000;   // 벗음 확인 대기시간 (3초 동안 벗고 있어야 "벗음 완료") - [새로 추가]
 
 const float CRASH_THR = 4.0;   // 충돌 감지 기준 (4.0G 이상의 강한 물리적 충격)
