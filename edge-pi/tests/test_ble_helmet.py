@@ -39,7 +39,7 @@ def _on_event(sender, data):
         print(f"  [EVENT] ⚠️ 크기 오류: {len(data)}바이트 (기대 14)")
         return
     schema_ver, seq, timestamp, ride_id, event_label = struct.unpack(EVENT_STRUCT_FORMAT, data)
-    is_accident = event_label in [1, 2, 3, 4]
+    is_accident = event_label in [1, 2, 3, 4, 5]
     print(f"  [EVENT] schema={schema_ver} seq={seq} ts={timestamp}ms "
           f"ride={ride_id} label={event_label} accident={is_accident}  ✅ 파싱 OK")
     _event_received = True
