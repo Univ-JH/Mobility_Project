@@ -69,14 +69,15 @@ async def test_connect_and_receive(device):
     from bleak import BleakClient
 
     print(f"\n[2] GATT 연결 및 Notification 구독 ({LISTEN_SEC}초 대기)")
-    async with BleakClient(device) as client:
+    client = BleakClient(device)
+    try:
+        await client.connect()
         if not client.is_connected:
             print("  FAIL — 연결 실패")
             return
 
         print(f"  연결 성공: {device.address}")
 
-        # 초기 착용 상태 읽기
         try:
             raw = await client.read_gatt_char(STATUS_CHAR_UUID)
             print(f"  [3] 초기 착용 상태 읽기: {raw[0] if raw else 'N/A'}")
@@ -89,8 +90,16 @@ async def test_connect_and_receive(device):
         print(f"  구독 시작 — {LISTEN_SEC}초 동안 알림 대기 (헬멧 착탈 또는 충격 유발)")
         await asyncio.sleep(LISTEN_SEC)
 
-        await client.stop_notify(STATUS_CHAR_UUID)
-        await client.stop_notify(EVENT_CHAR_UUID)
+        try:
+            await client.stop_notify(STATUS_CHAR_UUID)
+            await client.stop_notify(EVENT_CHAR_UUID)
+        except Exception:
+            pass  # device may have already disconnected
+    finally:
+        try:
+            await client.disconnect()
+        except (EOFError, Exception):
+            pass  # D-Bus EOF: device dropped connection before we could disconnect
 
     print(f"\n--- BLE 결과 ---")
     print(f"  STATUS 수신: {'PASS' if _status_received else 'FAIL (착탈 미감지)'}")
