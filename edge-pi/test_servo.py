@@ -15,7 +15,14 @@ try:
 except:
     h = lgpio.gpiochip_open(0)
 
-lgpio.gpio_claim_output_with_default(h, SERVO_PIN, 0)
+# 혹시 이전에 프로그램이 튕겨서 핀이 잠겨있다면 강제로 풀어줍니다.
+try:
+    lgpio.gpio_free(h, SERVO_PIN)
+except:
+    pass
+
+# 안전하게 초기값 0(로우 전압)을 주면서 아웃풋 핀으로 선언합니다.
+lgpio.gpio_claim_output(h, SERVO_PIN, 0)
 
 def calculate_duty(angle):
     if angle < 0: angle = 0
