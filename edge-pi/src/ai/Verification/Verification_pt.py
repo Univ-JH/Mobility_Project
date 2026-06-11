@@ -17,4 +17,4 @@ results = model.predict(source=test_image_path, conf=0.5, save=True, show=True)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
-print("테스트 완료!")
+print("테스트 완료")

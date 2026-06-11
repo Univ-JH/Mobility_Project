@@ -2,7 +2,7 @@ from ultralytics import YOLO
 
 def main():
     # 세그멘테이션용 YOLO 모델 로드
-    model = YOLO('yolo11n-seg.pt')
+    model = YOLO('yolo8n-seg.pt')
 
     # 모델 학습 시작
     results = model.train(
