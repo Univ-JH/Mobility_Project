@@ -50,7 +50,3 @@ EMERGENCY_AUTO_RECORD = False  # True 시 응급 상황에서 자동 녹화 시�
 # SZH-NEO02 (GPS) 설정
 GPS_SERIAL_PORT = "/dev/ttyAMA0"
 GPS_BAUDRATE = 9600
-
-# ATN-G04 (IMU 가속도/자이로) 설정
-IMU_I2C_ADDRESS = 0x68
-IMU_SHOCK_THRESHOLD = 2.5  # 2.5G 이상의 충격을 받으면 사고로 간주
