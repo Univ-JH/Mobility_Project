@@ -21,7 +21,7 @@ export const useRideHistory = () => {
     queryKey: ['rideHistory'],
     queryFn: async () => {
       const res = await userApi.getHistory();
-      return res.data.history;
+      return (res?.data?.history ?? []) as import('../api/userApi').RideHistoryItem[];
     },
     enabled: !!token,
     staleTime: 2 * 60 * 1000,

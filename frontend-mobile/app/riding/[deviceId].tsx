@@ -122,7 +122,7 @@ export default function RidingScreen() {
         ) : (
           <FlatList
             data={events}
-            keyExtractor={(_, i) => String(i)}
+            keyExtractor={(item) => `${item.eventType}-${item.timestamp}`}
             renderItem={renderEvent}
             scrollEnabled={false}
             contentContainerStyle={{ gap: 8 }}

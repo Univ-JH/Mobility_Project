@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { axiosInstance } from '../api/axiosInstance';
+import { axiosInstance, getAuthToken } from '../api/axiosInstance';
 
 export interface RidingData {
   speedKph: number;
@@ -27,7 +27,7 @@ const POLL_INTERVAL_MS = 5_000;
 const EVENT_POLL_INTERVAL_MS = 10_000;
 const DATA_STALE_MS = 15_000;
 const WS_RECONNECT_DELAY_MS = 3_000;
-const WS_MAX_RETRIES = 5;
+const WS_MAX_RETRIES = 999;
 
 export const useRidingWebSocket = (deviceId: string) => {
   const [data, setData] = useState<RidingData>(INITIAL_DATA);
@@ -137,7 +137,12 @@ export const useRidingWebSocket = (deviceId: string) => {
 
     const WS_BASE =
       process.env.EXPO_PUBLIC_WS_URL ?? 'ws://52.79.242.44:8000/v1/ws';
-    const url = `${WS_BASE}/device/${deviceId}`;
+    const token = getAuthToken();
+    if (!token) {
+      console.warn('[WS] No auth token, skipping connection');
+      return;
+    }
+    const url = `${WS_BASE}/device/${deviceId}?token=${encodeURIComponent(token)}`;
 
     let cancelled = false;
 
@@ -161,6 +166,7 @@ export const useRidingWebSocket = (deviceId: string) => {
         if (cancelled) { ws.close(); return; }
         console.log('[WS] Connected to', url);
         wsRetriesRef.current = 0;
+        setConnected(true);
       };
 
       ws.onerror = (e) => {

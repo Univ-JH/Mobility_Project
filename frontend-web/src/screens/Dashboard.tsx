@@ -56,8 +56,13 @@ export const Dashboard: React.FC = () => {
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>알림 타임라인 (24시간)</h3>
           <div style={{ flex: 1, minHeight: 0 }}>
+            {(!timeline || timeline.length === 0) ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                오늘 알림 데이터 없음
+              </div>
+            ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={timeline || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={timeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.8}/>
@@ -73,6 +78,7 @@ export const Dashboard: React.FC = () => {
                 <Area type="monotone" dataKey="count" stroke="var(--accent-primary)" fillOpacity={1} fill="url(#colorCount)" />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -80,26 +86,33 @@ export const Dashboard: React.FC = () => {
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>주행 환경 분포</h3>
           <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData} innerRadius={60} outerRadius={90} paddingAngle={5}
-                  dataKey="value" stroke="none"
-                >
-                  {pieData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '8px' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center Text */}
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-              <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold' }}>
-                {envStats ? (envStats.sidewalkRatio).toFixed(0) : 0}%
-              </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--accent-critical)' }}>인도</span>
-            </div>
+            {pieData.length === 0 || (envStats?.sidewalkRatio === 0 && envStats?.roadRatio === 0) ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                오늘 주행 데이터 없음
+              </div>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData} innerRadius={60} outerRadius={90} paddingAngle={5}
+                      dataKey="value" stroke="none"
+                    >
+                      {pieData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-card)', border: 'var(--glass-border)', borderRadius: '8px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                  <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    {(envStats?.sidewalkRatio ?? 0).toFixed(0)}%
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-critical)' }}>인도</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

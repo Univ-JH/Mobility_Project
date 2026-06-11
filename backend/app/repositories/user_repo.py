@@ -33,7 +33,9 @@ async def get_ride_history_for_user(user_id: str) -> List[Dict[str, Any]]:
     ]
     
     cursor = Event.get_motor_collection().aggregate(pipeline)
-    res = await cursor.to_list(length=None)
+    res: list = []
+    async for doc in cursor:
+        res.append(doc)
 
     history = []
     for r in res:

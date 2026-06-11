@@ -13,6 +13,8 @@ export const setAuthToken = (token: string | null): void => {
   _authToken = token;
 };
 
+export const getAuthToken = (): string | null => _authToken;
+
 axiosInstance.interceptors.request.use(
   (config) => {
     if (_authToken) {
