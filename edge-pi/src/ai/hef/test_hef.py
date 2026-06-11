@@ -61,7 +61,7 @@ def run_realtime_inference(display=True):
     input_shape = input_info.shape
     input_height, input_width = input_shape[1:3] if len(input_shape) == 4 else input_shape[0:2]
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
     if not cap.isOpened():
         print("❌ 카메라를 열 수 없습니다. 카메라 연결 및 설정을 확인하세요.")
         udp_sock.close()
