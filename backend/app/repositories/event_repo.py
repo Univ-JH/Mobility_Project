@@ -6,6 +6,12 @@ from app.repositories.models import Event
 from app.domain.states import DeviceState
 from app.schemas.mqtt_payloads import EventPayload
 
+
+async def get_device_events(device_id: str, limit: int = 20) -> list[Event]:
+    return await Event.find(
+        Event.deviceId == device_id
+    ).sort(-Event.eventAt).limit(limit).to_list()
+
 async def save_event_idempotent(payload: EventPayload, anomaly: bool = False, state_from: Optional[DeviceState] = None, state_to: Optional[DeviceState] = None) -> Optional[Event]:
     """
     Saves an event ensuring idempotency using the constraint.

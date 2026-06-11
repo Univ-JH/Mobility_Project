@@ -31,6 +31,8 @@ async def device_telemetry_ws(device_id: str, websocket: WebSocket) -> None:
         except Exception:
             pass
         while True:
-            await websocket.receive_text()
+            msg = await websocket.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
     finally:
         ws_manager.disconnect(device_id, websocket)

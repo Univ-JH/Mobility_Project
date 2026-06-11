@@ -10,6 +10,26 @@ from app.repositories.models import Event
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
+
+@router.get("/device/{device_id}")
+async def list_device_events(device_id: str, limit: int = 20) -> Any:
+    from app.repositories.event_repo import get_device_events
+    events = await get_device_events(device_id, min(limit, 50))
+    return create_success_response(
+        data=[
+            {
+                "eventType": e.eventType,
+                "severity": e.severity,
+                "reason": e.payload.get("reason", ""),
+                "confidence": e.confidence,
+                "timestamp": e.eventAt.isoformat(),
+            }
+            for e in events
+        ],
+        message="이벤트 목록 조회 성공"
+    )
+
+
 @router.post("/emergency")
 async def trigger_emergency(
     request: EmergencySOSRequest,
