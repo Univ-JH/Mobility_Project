@@ -42,7 +42,7 @@ def dist2bbox(distance, grid):
 # ==========================================
 # 메인 추론 및 시각화 로직
 # ==========================================
-def run_segmentation(conf_threshold, nms_threshold):
+def run_segmentation(image_path, conf_threshold, nms_threshold):
     print(f"🛠️  CONFIDENCE_THRESHOLD={conf_threshold}, NMS_THRESHOLD={nms_threshold}")
     print("✅ 1. HEF 파일 로드 및 NPU 초기화...")
     hef = HEF(HEF_PATH)
@@ -58,7 +58,7 @@ def run_segmentation(conf_threshold, nms_threshold):
         output_vstreams_params = OutputVStreamParams.make(network_group, format_type=FormatType.FLOAT32)
 
         print("✅ 2. 입력 이미지 전처리 중...")
-        original_img = cv2.imread(IMAGE_PATH)
+        original_img = cv2.imread(image_path)
         orig_h, orig_w = original_img.shape[:2]
         img_resized = cv2.resize(original_img, (input_width, input_height))
         img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
@@ -147,7 +147,7 @@ def run_segmentation(conf_threshold, nms_threshold):
             original_img = cv2.addWeighted(original_img, 1.0, mask_orig, 0.4, 0)
 
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        base_name = os.path.basename(IMAGE_PATH)
+        base_name = os.path.basename(image_path)
         name, ext = os.path.splitext(base_name)
         output_path = os.path.join(OUTPUT_DIR, f"{name}_conf{conf_threshold}_nms{nms_threshold}{ext}")
 
@@ -157,6 +157,10 @@ def run_segmentation(conf_threshold, nms_threshold):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Hailo-8 YOLOv8-seg 추론")
     parser.add_argument(
+        "image", nargs="?", default=IMAGE_PATH,
+        help=f"입력 이미지 경로 (기본값: {IMAGE_PATH})"
+    )
+    parser.add_argument(
         "--conf", type=float, default=0.55,
         help="신뢰도 임계값 (기본값: 0.55, 결과 부족시 0.25로 낮추세요)"
     )
@@ -165,4 +169,4 @@ if __name__ == "__main__":
         help="NMS 임계값 (기본값: 0.3, 박스 겹침 심하면 낮추세요)"
     )
     args = parser.parse_args()
-    run_segmentation(args.conf, args.nms)
+    run_segmentation(args.image, args.conf, args.nms)
