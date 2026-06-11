@@ -5,7 +5,7 @@ from datetime import datetime
 # 분리된 설정값을 불러옵니다.
 from src.communication.comm_config import (
     MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID, PI_ID,
-    MQTT_TOPIC_TELEMETRY, MQTT_TOPIC_STATUS,
+    MQTT_TOPIC_TELEMETRY, MQTT_TOPIC_STATUS, MQTT_TOPIC_CONTROL,
 )
 
 class BikeMQTTClient:
@@ -14,18 +14,34 @@ class BikeMQTTClient:
         self.client = mqtt.Client(client_id=MQTT_CLIENT_ID, clean_session=False)
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
+        self.client.on_message = self._on_message
         self.is_connected = False
+        # 서버 제어 명령 수신 콜백 — main.py에서 주입
+        # 서명: on_control_command(action: str, payload: dict)
+        self.on_control_command = None
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
             print(f"🌐 [MQTT] AWS 관제 서버 연결 성공!")
             self.is_connected = True
+            client.subscribe(MQTT_TOPIC_CONTROL, qos=1)
+            print(f"📡 [MQTT] 제어 명령 구독 시작: {MQTT_TOPIC_CONTROL}")
         else:
             print(f"⚠️ [MQTT] 서버 연결 실패 (코드: {rc})")
 
     def _on_disconnect(self, client, userdata, rc):
         print("❌ [MQTT] 관제 서버 연결 끊김 (오프라인 내부 큐 적재 모드)")
         self.is_connected = False
+
+    def _on_message(self, client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode("utf-8"))
+            action = payload.get("action", "")
+            print(f"📩 [MQTT] 제어 명령 수신: action={action}")
+            if self.on_control_command and action:
+                self.on_control_command(action, payload)
+        except Exception as e:
+            print(f"⚠️ [MQTT] 제어 메시지 파싱 실패: {e}")
 
     def start(self):
         try:

@@ -36,6 +36,7 @@ MQTT_TOPIC_TELEMETRY = f"device/{PI_ID}/telemetry"
 MQTT_TOPIC_EVENT     = f"device/{PI_ID}/event"
 MQTT_TOPIC_STATUS    = f"device/{PI_ID}/status"    # 헬멧 BLE 연결/끊김 상태 [BUG-J]
 MQTT_TOPIC_EMERGENCY = f"device/{PI_ID}/emergency"
+MQTT_TOPIC_CONTROL   = f"device/{PI_ID}/control"   # 서버 → 기기 제어 명령
 
 # ==========================================
 # [4] GPS / IMU 설정

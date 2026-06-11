@@ -6,6 +6,10 @@ from typing import Dict, Any
 from src.control.servo_control import BrakeController
 from src.control.radar import MmwaveRadarSensor
 from src.control.led_warning import RearApproachLED
+from src.control.control_config import EMERGENCY_AUTO_RECORD
+
+# 1-1. 카메라 녹화 모듈
+from src.camera.recorder import VideoRecorder
 
 # 2. 통신 모듈
 from src.communication.ble_manager import HelmetBLEManager
@@ -32,9 +36,11 @@ class SmartBikeSystem:
         self.vision = VisionReceiver()
         self.location = LocationMotionSensor()
         self.state_machine = SafetyStateMachine(ride_id=PI_ID)
+        self.recorder = VideoRecorder()
 
         self.is_running = False
         self.last_telemetry_time = 0.0
+        self._last_emergency = False  # 응급 자동 녹화 중복 방지용
 
     async def _gather_sensor_data(self) -> Dict[str, Any]:
         """모든 센서 모듈에서 최신 데이터를 긁어모아 딕셔너리로 만듭니다."""
@@ -153,6 +159,15 @@ class SmartBikeSystem:
             )
             self.last_telemetry_time = current_time
 
+    def _on_control_command(self, action: str, payload: dict):
+        """MQTT device/{id}/control 수신 핸들러 (MQTT 백그라운드 스레드에서 호출됨)."""
+        if action == "start_record":
+            self.recorder.start(tag="manual")
+        elif action == "stop_record":
+            self.recorder.stop()
+        else:
+            print(f"⚠️ [제어] 알 수 없는 명령: {action}")
+
     async def _on_helmet_connection_change(self, connected: bool, helmet_id: str):
         """[BUG-J] BLE 연결 상태 변경 → MQTT device/{id}/status 발행"""
         self.mqtt.send_helmet_status(connected=connected, helmet_id=helmet_id)
@@ -163,6 +178,8 @@ class SmartBikeSystem:
 
         # [BUG-J] 헬멧 연결/끊김 이벤트를 MQTT로 전달할 콜백 등록
         self.ble.on_connection_change = self._on_helmet_connection_change
+        # 서버 제어 명령 수신 콜백 등록 (녹화 start/stop)
+        self.mqtt.on_control_command = self._on_control_command
 
         self.mqtt.start()
         self.vision.start()
@@ -210,6 +227,18 @@ class SmartBikeSystem:
                     else:
                         self.led.clear()
 
+                    # 수동 녹화 플래그 파일 체크 (touch /tmp/record_start|stop)
+                    self.recorder.check_flag_triggers()
+
+                    # 응급 자동 녹화 (EMERGENCY_AUTO_RECORD=True 일 때만 동작)
+                    is_emergency = (brake_level == "level_emergency")
+                    if EMERGENCY_AUTO_RECORD:
+                        if is_emergency and not self._last_emergency:
+                            self.recorder.start(tag="emergency")
+                        elif not is_emergency and self._last_emergency and self.recorder.is_recording:
+                            self.recorder.stop()
+                    self._last_emergency = is_emergency
+
                     # 비동기 격리 (브레이크 서보 모터)
                     await asyncio.to_thread(self._execute_brake_command, brake_level, sensor_data.get("speed", 0.0))
                     
@@ -237,6 +266,7 @@ class SmartBikeSystem:
         self.brake.cleanup()
         self.radar.cleanup()
         self.led.cleanup()
+        self.recorder.cleanup()
 
         self.location.stop()
         self.vision.stop()
