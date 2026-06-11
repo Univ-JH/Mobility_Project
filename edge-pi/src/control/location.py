@@ -1,29 +1,26 @@
-# pip install pyserial smbus2
+# pip install pyserial
 import serial
-import smbus2
 import threading
 import time
-import math
 
 from src.communication.comm_config import (
-    GPS_SERIAL_PORT, GPS_BAUDRATE,
-    IMU_I2C_ADDRESS, IMU_SHOCK_THRESHOLD
+    GPS_SERIAL_PORT, GPS_BAUDRATE
 )
 
 class LocationMotionSensor:
     def __init__(self):
         self.data_lock = threading.Lock()
-
+        
+        # main.py 와의 완벽한 호환성을 위해 딕셔너리 구조 그대로 유지
         self.current_data = {
-            "lat": 0.0,
-            "lon": 0.0,
-            "speed": 0.0,
-            "bike_shock": False
+            "lat": 0.0,             
+            "lon": 0.0,             
+            "speed": 0.0,           
+            "bike_shock": False     # IMU가 없으므로 항상 False로 안전 유지
         }
         self.is_running = False
-        self.shock_until = 0.0
-
-        # GPS (SZH-NEO02) 초기화
+        
+        # --- GPS (SZH-NEO02) 초기화 ---
         try:
             self.gps = serial.Serial(GPS_SERIAL_PORT, GPS_BAUDRATE, timeout=1)
             self.gps.reset_input_buffer()
@@ -32,83 +29,42 @@ class LocationMotionSensor:
             self.gps = None
             print(f"⚠️ [센서] GPS 연결 실패: {e}")
 
-        # IMU (ATN-G04) 초기화
-        try:
-            self.bus = smbus2.SMBus(1)
-            self.bus.write_byte_data(IMU_I2C_ADDRESS, 0x6B, 0)
-            print(f"🧭 [센서] IMU 연결 성공: 0x{IMU_I2C_ADDRESS:02X}")
-        except Exception as e:
-            self.bus = None
-            print(f"⚠️ [센서] IMU 연결 실패: {e}")
-
-    def _read_imu_word(self, reg):
-        if not self.bus:
-            return 0
-        try:
-            h = self.bus.read_byte_data(IMU_I2C_ADDRESS, reg)
-            l = self.bus.read_byte_data(IMU_I2C_ADDRESS, reg + 1)
-            value = (h << 8) + l
-            return -((65535 - value) + 1) if value >= 0x8000 else value
-        except Exception:
-            return 0
-
-    def _imu_loop(self):
-        print("⚡ [센서] IMU 충격 감지 고속 스레드 가동 (50Hz)")
-        while self.is_running:
-            if self.bus:
-                try:
-                    acc_x = self._read_imu_word(0x3B) / 16384.0
-                    acc_y = self._read_imu_word(0x3D) / 16384.0
-                    acc_z = self._read_imu_word(0x3F) / 16384.0
-                    total_g = math.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
-
-                    if total_g > IMU_SHOCK_THRESHOLD:
-                        self.shock_until = time.time() + 2.0
-
-                except Exception:
-                    pass
-
-                with self.data_lock:
-                    self.current_data["bike_shock"] = time.time() < self.shock_until
-
-            time.sleep(0.02)
-
+    # ========================================================
+    # [스레드] GPS 저속 처리 스레드 (5Hz)
+    # ========================================================
     def _gps_loop(self):
-        print("🛰️ [센서] GPS 위치 데이터 수집 스레드 가동 (5Hz)")
+        print("🛰️ [센서] GPS 위치 데이터 수집 스레드 가동")
         while self.is_running:
             if self.gps and self.gps.in_waiting > 0:
                 try:
                     line = self.gps.readline().decode('utf-8', errors='ignore').strip()
                     if line.startswith('$GPRMC'):
                         parts = line.split(',')
-
-                        if len(parts) >= 10 and parts[2] == 'A':
+                        
+                        if len(parts) >= 10 and parts[2] == 'A': 
                             raw_lat = float(parts[3])
                             parsed_lat = int(raw_lat / 100) + ((raw_lat % 100) / 60.0)
-                            if parts[4] == 'S':
-                                parsed_lat = -parsed_lat
-
+                            if parts[4] == 'S': parsed_lat = -parsed_lat
+                            
                             raw_lon = float(parts[5])
                             parsed_lon = int(raw_lon / 100) + ((raw_lon % 100) / 60.0)
-                            if parts[6] == 'W':
-                                parsed_lon = -parsed_lon
-
-                            parsed_speed = float(parts[7]) * 1.852
-
+                            if parts[6] == 'W': parsed_lon = -parsed_lon
+                            
+                            parsed_speed = float(parts[7]) * 1.852 
+                            
                             with self.data_lock:
                                 self.current_data["lat"] = parsed_lat
                                 self.current_data["lon"] = parsed_lon
                                 self.current_data["speed"] = parsed_speed
                 except Exception:
-                    pass
-
-            time.sleep(0.2)
+                    pass 
+            
+            time.sleep(0.2) 
 
     def start(self):
         self.is_running = True
-        self.imu_thread = threading.Thread(target=self._imu_loop, daemon=True)
+        # IMU 스레드를 지우고 GPS 스레드만 단독 실행
         self.gps_thread = threading.Thread(target=self._gps_loop, daemon=True)
-        self.imu_thread.start()
         self.gps_thread.start()
 
     def get_sensor_data(self):
@@ -117,14 +73,10 @@ class LocationMotionSensor:
 
     def stop(self):
         self.is_running = False
-        if hasattr(self, 'imu_thread'):
-            self.imu_thread.join(timeout=1.0)
-        if hasattr(self, 'gps_thread'):
-            self.gps_thread.join(timeout=1.0)
-
-        if self.gps:
+        if hasattr(self, 'gps_thread'): 
+            self.gps_thread.join()
+        
+        if self.gps: 
             self.gps.close()
-        if self.bus:
-            self.bus.close()
-
-        print("🧹 [센서] 위치 및 모션 모듈 안전 종료")
+            
+        print("🧹 [센서] 위치 모듈 안전 종료")
