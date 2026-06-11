@@ -92,19 +92,19 @@ export const useMapDevices = () => {
         lat: d.lastLocation!.lat,
         lng: d.lastLocation!.lng,
         state: d.currentState,
-        isOnline: isDeviceOnline(d.lastSeenAt),
+        isOnline: isDeviceOnline(d.lastSeenAt, d.lastHeartbeatAt),
         isDangerous: isDangerous(d.currentState),
         lastSeenAt: d.lastSeenAt,
       }));
   }, [deviceList]);
 
   const onlineDevices = useMemo(
-    () => (deviceList ?? []).filter(d => isDeviceOnline(d.lastSeenAt)),
+    () => (deviceList ?? []).filter(d => isDeviceOnline(d.lastSeenAt, d.lastHeartbeatAt)),
     [deviceList],
   );
 
   const offlineDevices = useMemo(
-    () => (deviceList ?? []).filter(d => !isDeviceOnline(d.lastSeenAt)),
+    () => (deviceList ?? []).filter(d => !isDeviceOnline(d.lastSeenAt, d.lastHeartbeatAt)),
     [deviceList],
   );
 

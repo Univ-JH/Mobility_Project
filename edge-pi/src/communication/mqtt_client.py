@@ -57,34 +57,37 @@ class BikeMQTTClient:
                         arduino_seq: int, is_worn: bool, is_accident: bool,
                         severity: str, reason: str, brake_level: str,
                         confidence: float = 0.5, battery_level: int = -1,
-                        helmet_id: str = "unknown"):
+                        helmet_id: str = "unknown", ride_id: str = "unknown",
+                        ble_connected: bool = False):
         """
         자전거의 모든 센서 및 판단 상태를 하나의 JSON 패킷으로 묶어 서버로 연속 전송합니다.
 
         confidence: 사고 판단 신뢰도 (0.0~1.0). event_label 기반으로 main.py에서 계산.
         battery_level: 헬멧 배터리 잔량 (%). Arduino 구조체에 미포함 시 -1.
         helmet_id: 연결된 헬멧 BLE MAC 주소. 미연결 시 "unknown".
+        ride_id: 현재 주행 세션 ID.
+        ble_connected: 헬멧 BLE 연결 여부.
         """
         payload = {
-            "deviceId": PI_ID,                       # Pi 기기 ID
-            "helmetId": helmet_id,                   # [CONTRACT-2] 헬멧 BLE MAC 주소
+            "schemaVersion": 1,
+            "deviceId": PI_ID,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "seq": arduino_seq,
+            "rideId": ride_id,
             "speedKph": round(speed, 2),
-            "environment": road_type,
             "latitude": lat,
             "longitude": lon,
-            "timestamp": datetime.now().isoformat(),
-            "arduino": {
-                "seq": arduino_seq,
-                "is_worn": is_worn,
-                "is_accident": is_accident,
-                "battery_level": battery_level,      # [CONTRACT-1] -1 = 아두이노 미전송 (구조체 미포함)
+            "helmet": {
+                "worn": is_worn,
             },
-            "safety": {
-                "severity": severity,
-                "reason": reason,
-                "brake_level": brake_level,
-                "confidence": round(confidence, 3),  # [CONTRACT-3] 사고 판단 신뢰도
-            }
+            "vision": {
+                "surfaceClass": road_type,
+                "sidewalkProb": 0.0,
+            },
+            "health": {
+                "bleConnected": ble_connected,
+                "batteryPct": max(battery_level, 0),
+            },
         }
 
         # 오프라인 상태이거나 위험도가 높을 때 데이터 유실을 막기 위해 QoS 1 사용

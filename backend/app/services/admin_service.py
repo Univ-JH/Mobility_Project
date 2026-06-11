@@ -37,6 +37,7 @@ async def get_device_list() -> list[DeviceListItemDto]:
             deviceType=d.deviceType,
             currentState=d.currentState.value,
             lastSeenAt=d.lastSeenAt,
+            lastHeartbeatAt=d.lastHeartbeatAt,
             helmetWorn=d.helmetWorn,
             bleConnected=d.bleConnected,
             lastLocation=location,

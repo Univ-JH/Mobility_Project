@@ -41,6 +41,7 @@ async def list_my_devices(user_id: str = Depends(get_current_user)) -> Any:
                 "bleConnected": d.bleConnected,
                 "helmetWorn": d.helmetWorn,
                 "lastSeenAt": d.lastSeenAt.isoformat() if d.lastSeenAt else None,
+                "lastHeartbeatAt": d.lastHeartbeatAt.isoformat() if d.lastHeartbeatAt else None,
             }
             for d in devices
         ],

@@ -226,15 +226,14 @@ class TemporalStabilizer:
         unk_count  = sum(1 for cls, _ in self._window if cls == UNKNOWN)
 
         total = len(self._window)
-        if total == 0:
-            return UNKNOWN, 0.0
-
         sw_votes = len(sw_confs) + (unk_count if self._unk_as_sw else 0)
 
         if sw_votes / total >= self._trigger:
             return SIDEWALK, float(np.mean(sw_confs)) if sw_confs else 0.3
+        elif road_confs:
+            return ROAD, float(np.mean(road_confs))
         else:
-            return ROAD, float(np.mean(road_confs)) if road_confs else 0.3
+            return UNKNOWN, 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -407,7 +406,7 @@ def _classify_roi(
     if road_px == 0 and sw_px == 0:
         return UNKNOWN, 0.0
 
-    if road_px >= sw_px:
+    if road_px > sw_px:
         return ROAD,     float(roi_conf[road_mask].mean())
     else:
         return SIDEWALK, float(roi_conf[sw_mask].mean())
@@ -510,8 +509,8 @@ class UDPPublisher:
             cls_str = "unknown"
         try:
             self._sock.sendto(f"{cls_str},{confidence:.3f}".encode(), self._addr)
-        except OSError:
-            pass  # VisionReceiver may not be running yet
+        except OSError as e:
+            _log.debug("UDP send failed: %s", e)
 
     def close(self) -> None:
         self._sock.close()
@@ -558,19 +557,21 @@ def main() -> None:
         cfg["stabilization"]["sidewalk_trigger_ratio"],
         cfg["stabilization"]["unknown_as_sidewalk"],
     )
-    publisher = UDPPublisher(cfg["udp"]["host"], cfg["udp"]["port"])
-
-    # Load HEF and resolve input shape
-    _log.info("Loading HEF: %s", hef_path)
-    hef = HEF(str(hef_path))
-    raw_shape = hef.get_input_vstream_infos()[0].shape
-    input_h, input_w = (raw_shape[1], raw_shape[2]) if len(raw_shape) == 4 else (raw_shape[0], raw_shape[1])
-    input_name = hef.get_input_vstream_infos()[0].name
-    _log.info("Model input: %dx%d  name=%s", input_w, input_h, input_name)
-
-    cam, is_picam = _init_camera(cfg)
-
+    publisher = None
+    cam, is_picam = None, False
     try:
+        publisher = UDPPublisher(cfg["udp"]["host"], cfg["udp"]["port"])
+
+        # Load HEF and resolve input shape
+        _log.info("Loading HEF: %s", hef_path)
+        hef = HEF(str(hef_path))
+        raw_shape = hef.get_input_vstream_infos()[0].shape
+        input_h, input_w = (raw_shape[1], raw_shape[2]) if len(raw_shape) == 4 else (raw_shape[0], raw_shape[1])
+        input_name = hef.get_input_vstream_infos()[0].name
+        _log.info("Model input: %dx%d  name=%s", input_w, input_h, input_name)
+
+        cam, is_picam = _init_camera(cfg)
+
         with VDevice() as target:
             params = ConfigureParams.create_from_hef(hef, interface=HailoStreamInterface.PCIe)
             ng = target.configure(hef, params)[0]
@@ -657,8 +658,10 @@ def main() -> None:
                             _log.info("state=%-8s conf=%.2f fps=%.1f", cls_str, voted_conf, fps)
 
     finally:
-        _release_camera(cam, is_picam)
-        publisher.close()
+        if cam is not None:
+            _release_camera(cam, is_picam)
+        if publisher is not None:
+            publisher.close()
         if cfg["display"]["enabled"]:
             cv2.destroyAllWindows()
         _log.info("Shutdown complete.")
