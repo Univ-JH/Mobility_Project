@@ -31,34 +31,68 @@ class RearApproachLED:
         lgpio.tx_pwm(self.h, LED_G_PIN, PWM_FREQ, 100 - g_duty)
         lgpio.tx_pwm(self.h, LED_B_PIN, PWM_FREQ, 100 - b_duty)
 
-    def update_status(self, brake_level: str):
+    # def update_status(self, brake_level: str):
+    #     """다양한 색상을 표출하는 핵심 지능형 로직"""
+    #     if self._current_level == brake_level:
+    #         return  
+            
+    #     with self.lock:
+    #         self._current_level = brake_level
+    #         self._active = True
+            
+    #         # 1. 생명 위급 상황 (낙차/충격 사고) -> 전방 보라색 🟣 + 후방 레드바 ON
+    #         if brake_level == "level_emergency":
+    #             self._set_rgb_color(100, 0, 100)
+    #             lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
+                
+    #         # 2. 강력 제동 상황 -> 전방 빨간색 🔴 + 후방 레드바 ON
+    #         elif brake_level == "level_2":
+    #             self._set_rgb_color(100, 0, 0)
+    #             lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
+                
+    #         # 3. 감속 주의 상황 -> 전방 노란색 🟡 + 후방 레드바 ON
+    #         elif brake_level == "level_1":
+    #             self._set_rgb_color(100, 60, 0)
+    #             lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
+                
+    #         # 4. 평상시 정상 주행 -> 전방 초록색 🟢 + 후방 레드바 OFF
+    #         elif brake_level == "level_0":
+    #             self._set_rgb_color(0, 100, 0)
+    #             lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
+
+    def update_status(self, state: str):
         """다양한 색상을 표출하는 핵심 지능형 로직"""
-        if self._current_level == brake_level:
+        if self._current_level == state:
             return  
             
         with self.lock:
-            self._current_level = brake_level
+            self._current_level = state
             self._active = True
             
-            # 1. 생명 위급 상황 (낙차/충격 사고) -> 전방 보라색 🟣 + 후방 레드바 ON
-            if brake_level == "level_emergency":
-                self._set_rgb_color(100, 0, 100)
-                lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
-                
-            # 2. 강력 제동 상황 -> 전방 빨간색 🔴 + 후방 레드바 ON
-            elif brake_level == "level_2":
+            # 1. 전도/사고: 전방 빨강, 후면 빨강 켜짐
+            if state in ("accident", "level_emergency"):
                 self._set_rgb_color(100, 0, 0)
-                lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
-                
-            # 3. 감속 주의 상황 -> 전방 노란색 🟡 + 후방 레드바 ON
-            elif brake_level == "level_1":
+                if not self._blink_active.is_set():
+                    lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
+                    
+            # 2. 급정거: 전방 빨강, 후면 깜빡임 대기
+            # (깜빡임 동작 자체는 main.py의 brake_blink가 스레드로 실행합니다)
+            elif state == "sudden_decel":
+                self._set_rgb_color(100, 0, 0)
+                if not self._blink_active.is_set():
+                    lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
+                    
+            # 3. 미착용: 전방 노랑, 후면 꺼짐
+            elif state == "unworn":
                 self._set_rgb_color(100, 60, 0)
-                lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
-                
-            # 4. 평상시 정상 주행 -> 전방 초록색 🟢 + 후방 레드바 OFF
-            elif brake_level == "level_0":
+                if not self._blink_active.is_set():
+                    lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
+                    
+            # 4. 정상 및 급가속: 전방 초록, 후면 꺼짐
+            elif state in ("normal", "level_0"):
                 self._set_rgb_color(0, 100, 0)
-                lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
+                if not self._blink_active.is_set():
+                    lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
 
     # ==========================================================
     # ⚠️ 기존 main.py를 수정하지 않아도 에러가 나지 않도록 지켜주는 호환성 메서드
