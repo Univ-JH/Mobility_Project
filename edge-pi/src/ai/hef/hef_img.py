@@ -57,6 +57,8 @@ def infer_frame(frame, infer_pipeline, input_info, input_height, input_width,
     res = infer_pipeline.infer({input_info.name: input_data})
 
     overlay_canvas = np.zeros_like(img_resized, dtype=np.uint8)
+    position_label = "UNKNOWN"
+    label_color    = (180, 180, 180)
     proto_tensor = res[f'{prefix}/conv48'][0]  # (160, 160, 32)
 
     all_bboxes, all_scores, all_class_ids, all_mask_coeffs = [], [], [], []
@@ -116,8 +118,45 @@ def infer_frame(frame, infer_pipeline, input_info, input_height, input_width,
                 canvas_condition = (class_map == cls_id) & (max_conf_map > conf_threshold)
                 overlay_canvas[canvas_condition] = color
 
+            # 중앙 하단 ROI에서 현재 위치 판단 (input 해상도 기준)
+            roi_x1 = int(input_width  * 0.35)
+            roi_x2 = int(input_width  * 0.65)
+            roi_y1 = int(input_height * 0.75)
+            roi_y2 = int(input_height * 0.95)
+            roi_class  = class_map[roi_y1:roi_y2, roi_x1:roi_x2]
+            roi_conf   = max_conf_map[roi_y1:roi_y2, roi_x1:roi_x2]
+            valid_mask = roi_conf > conf_threshold
+            if valid_mask.sum() > 0:
+                road_px     = int(((roi_class == 0) & valid_mask).sum())
+                sidewalk_px = int(((roi_class == 1) & valid_mask).sum())
+                if road_px > sidewalk_px:
+                    position_label = "ROAD"
+                    label_color    = (0, 0, 255)   # 빨강
+                else:
+                    position_label = "SIDEWALK"
+                    label_color    = (0, 200, 0)   # 초록
+            else:
+                position_label = "UNKNOWN"
+                label_color    = (180, 180, 180)
+
         mask_orig = cv2.resize(overlay_canvas, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
         frame = cv2.addWeighted(frame, 1.0, mask_orig, 0.4, 0)
+
+    # 중앙 하단 사각형 + 라벨 그리기 (원본 해상도 기준)
+    box_x1 = int(orig_w * 0.35)
+    box_x2 = int(orig_w * 0.65)
+    box_y1 = int(orig_h * 0.75)
+    box_y2 = int(orig_h * 0.95)
+    cv2.rectangle(frame, (box_x1, box_y1), (box_x2, box_y2), label_color, 2)
+
+    font_scale = max(0.6, orig_w / 1280)
+    text_size, _ = cv2.getTextSize(position_label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 2)
+    text_x = (box_x1 + box_x2 - text_size[0]) // 2
+    text_y = box_y2 - 8
+    cv2.putText(frame, position_label, (text_x, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), 4, cv2.LINE_AA)
+    cv2.putText(frame, position_label, (text_x, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX, font_scale, label_color, 2, cv2.LINE_AA)
 
     return frame
 
