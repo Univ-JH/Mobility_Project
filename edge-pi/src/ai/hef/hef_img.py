@@ -194,7 +194,7 @@ def run_video(input_path, conf_threshold, nms_threshold):
     if not cap.isOpened():
         raise FileNotFoundError(f"영상을 열 수 없습니다: {os.path.abspath(input_path)}")
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    fps = 15.0
     orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
