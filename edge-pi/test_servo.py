@@ -15,7 +15,7 @@ try:
 except:
     h = lgpio.gpiochip_open(0)
 
-lgpio.gpio_claim_output(h, SERVO_PIN)
+lgpio.gpio_claim_output_with_default(h, SERVO_PIN, 0)
 
 def calculate_duty(angle):
     if angle < 0: angle = 0
