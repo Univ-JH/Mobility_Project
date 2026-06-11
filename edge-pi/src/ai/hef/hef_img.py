@@ -59,6 +59,8 @@ def run_segmentation(image_path, conf_threshold, nms_threshold):
 
         print("✅ 2. 입력 이미지 전처리 중...")
         original_img = cv2.imread(image_path)
+        if original_img is None:
+            raise FileNotFoundError(f"이미지를 열 수 없습니다: {os.path.abspath(image_path)}")
         orig_h, orig_w = original_img.shape[:2]
         img_resized = cv2.resize(original_img, (input_width, input_height))
         img_rgb = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
