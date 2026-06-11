@@ -41,6 +41,7 @@ class SmartBikeSystem:
         self.is_running = False
         self.last_telemetry_time = 0.0
         self._last_emergency = False  # 응급 자동 녹화 중복 방지용
+        self._last_blink_seq = -1    # 급정거 깜빡임 중복 방지용 (seq 기준)
 
     async def _gather_sensor_data(self) -> Dict[str, Any]:
         """모든 센서 모듈에서 최신 데이터를 긁어모아 딕셔너리로 만듭니다."""
@@ -240,7 +241,17 @@ class SmartBikeSystem:
                     self._last_emergency = is_emergency
 
                     # 비동기 격리 (브레이크 서보 모터)
-                    await asyncio.to_thread(self._execute_brake_command, brake_level, sensor_data.get("speed", 0.0))
+                    # 급가속(label=3), 급정거(label=4) 시 모터 제어 생략
+                    event_label = sensor_data.get("event_label", 0)
+                    if event_label not in (3, 4):
+                        await asyncio.to_thread(self._execute_brake_command, brake_level, sensor_data.get("speed", 0.0))
+
+                    # 급정거 감지 시 후방 LED 5회 빠른 깜빡임 (seq 기준 중복 방지)
+                    if event_label == 4:
+                        seq = sensor_data.get("arduino_seq", -1)
+                        if seq != self._last_blink_seq:
+                            self._last_blink_seq = seq
+                            asyncio.create_task(asyncio.to_thread(self.led.brake_blink))
                     
                     # 서버(MQTT) 전송
                     self._send_mqtt_logs(brake_level, reason, sensor_data)

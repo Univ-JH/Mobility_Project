@@ -1,3 +1,4 @@
+import time
 import threading
 import lgpio
 from .control_config import LED_R_PIN, LED_G_PIN, LED_B_PIN, REAR_LED_PIN
@@ -61,6 +62,15 @@ class RearApproachLED:
     # ==========================================================
     # ⚠️ 기존 main.py를 수정하지 않아도 에러가 나지 않도록 지켜주는 호환성 메서드
     # ==========================================================
+    def brake_blink(self, count=5, on_ms=100, off_ms=100):
+        """급정거 감지 시 후방 LED를 count회 빠르게 깜빡입니다 (자동차 제동등 패턴)."""
+        with self.lock:
+            for _ in range(count):
+                lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
+                time.sleep(on_ms / 1000.0)
+                lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
+                time.sleep(off_ms / 1000.0)
+
     def warn_rear(self):
         """기존 main.py에서 호출하면 자동으로 '빨간색(위험)' 모드로 전환시킵니다."""
         self.update_status("level_2")
