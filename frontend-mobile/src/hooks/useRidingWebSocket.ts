@@ -24,7 +24,6 @@ const INITIAL_DATA: RidingData = {
 
 const MAX_EVENTS = 20;
 const POLL_INTERVAL_MS = 5_000;
-const WS_CONNECT_TIMEOUT_MS = 5_000;
 
 export const useRidingWebSocket = (deviceId: string) => {
   const [data, setData] = useState<RidingData>(INITIAL_DATA);
@@ -32,75 +31,74 @@ export const useRidingWebSocket = (deviceId: string) => {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const wsConnectedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const applyStatus = useCallback((d: any) => {
+    if (!mountedRef.current) return;
     setData({
-      speedKph: d.speedKph ?? 0,
-      roadType: d.roadType ?? 'unknown',
-      helmetWorn: d.helmetWorn ?? false,
-      bleConnected: d.bleConnected ?? false,
+      speedKph: typeof d.speedKph === 'number' ? d.speedKph : 0,
+      roadType: (d.roadType as any) ?? 'unknown',
+      helmetWorn: d.helmetWorn === true,
+      bleConnected: d.bleConnected === true,
     });
   }, []);
 
-  const fetchStatus = useCallback(() => {
-    if (!deviceId) return;
-    axiosInstance
-      .get<any, any>(`/devices/${deviceId}/status`)
-      .then((res: any) => {
-        const d = res?.data ?? res;
-        applyStatus(d);
-      })
-      .catch(() => {});
-  }, [deviceId, applyStatus]);
-
-  const startPolling = useCallback(() => {
-    if (pollTimerRef.current) return;
-    fetchStatus();
-    pollTimerRef.current = setInterval(fetchStatus, POLL_INTERVAL_MS);
-  }, [fetchStatus]);
-
-  const stopPolling = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  }, []);
-
+  // ── HTTP polling (always active as primary data source) ──────────────────
   useEffect(() => {
     if (!deviceId) return;
+    mountedRef.current = true;
 
-    wsConnectedRef.current = false;
+    const poll = () => {
+      axiosInstance
+        .get<any, any>(`/devices/${deviceId}/status`)
+        .then((res: any) => {
+          const d = res?.data ?? res;
+          applyStatus(d);
+        })
+        .catch(() => {/* network error — retry next interval */});
+    };
+
+    poll(); // immediate fetch on mount
+    pollTimerRef.current = setInterval(poll, POLL_INTERVAL_MS);
+
+    return () => {
+      mountedRef.current = false;
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [deviceId, applyStatus]);
+
+  // ── WebSocket (upgrade when available — real-time overlay) ──────────────
+  useEffect(() => {
+    if (!deviceId) return;
 
     const WS_BASE =
       process.env.EXPO_PUBLIC_WS_URL ?? 'ws://52.79.242.44:8000/v1/ws';
     const url = `${WS_BASE}/device/${deviceId}`;
-    const ws = new WebSocket(url);
+
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url);
+    } catch (e) {
+      console.warn('[WS] Failed to create WebSocket:', e);
+      return;
+    }
     wsRef.current = ws;
 
-    // If WebSocket doesn't open within timeout, fall back to HTTP polling.
-    const connectTimeout = setTimeout(() => {
-      if (!wsConnectedRef.current) {
-        startPolling();
-      }
-    }, WS_CONNECT_TIMEOUT_MS);
-
     ws.onopen = () => {
-      clearTimeout(connectTimeout);
-      wsConnectedRef.current = true;
-      stopPolling();
+      console.log('[WS] Connected to', url);
       setConnected(true);
     };
 
-    ws.onclose = () => {
-      wsConnectedRef.current = false;
+    ws.onclose = (e) => {
+      console.warn('[WS] Closed:', e.code, e.reason);
       setConnected(false);
-      // WebSocket dropped mid-session — fall back to polling
-      startPolling();
     };
 
-    ws.onerror = () => {
-      wsConnectedRef.current = false;
+    ws.onerror = (e) => {
+      console.warn('[WS] Error:', e);
       setConnected(false);
     };
 
@@ -110,6 +108,7 @@ export const useRidingWebSocket = (deviceId: string) => {
         if (msg.type === 'telemetry_update') {
           applyStatus(msg);
         } else if (msg.type === 'event_notification') {
+          if (!mountedRef.current) return;
           setEvents((prev) =>
             [
               {
@@ -134,13 +133,11 @@ export const useRidingWebSocket = (deviceId: string) => {
     }, 20_000);
 
     return () => {
-      clearTimeout(connectTimeout);
       clearInterval(pingInterval);
-      stopPolling();
       wsRef.current = null;
       ws.close();
     };
-  }, [deviceId, applyStatus, startPolling, stopPolling]);
+  }, [deviceId, applyStatus]);
 
   return { data, events, connected };
 };

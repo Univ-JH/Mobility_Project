@@ -1,29 +1,7 @@
-import asyncio
 from fastapi import APIRouter, WebSocket
 from app.services.ws_manager import ws_manager
 
 router = APIRouter()
-
-
-async def _send_snapshot(device_id: str, websocket: WebSocket) -> None:
-    """Push current DB state to the client immediately after connect.
-    Runs as a background task so any failure never closes the WebSocket."""
-    try:
-        from app.repositories.device_repo import get_device
-        device = await get_device(device_id)
-        if device:
-            await websocket.send_json({
-                "type": "telemetry_update",
-                "deviceId": device_id,
-                "speedKph": device.speedKph,
-                "roadType": device.currentRoadType,
-                "helmetWorn": device.helmetWorn,
-                "bleConnected": device.bleConnected,
-                "state": device.currentState.value,
-                "timestamp": device.lastSeenAt.isoformat() if device.lastSeenAt else None,
-            })
-    except Exception:
-        pass
 
 
 @router.websocket("/device/{device_id}")
@@ -34,7 +12,24 @@ async def device_telemetry_ws(device_id: str, websocket: WebSocket) -> None:
     """
     await ws_manager.connect(device_id, websocket)
     try:
-        asyncio.create_task(_send_snapshot(device_id, websocket))
+        # Send current DB state synchronously before entering receive loop.
+        # Wrapped in try/except so any DB failure never closes the connection.
+        try:
+            from app.repositories.device_repo import get_device
+            device = await get_device(device_id)
+            if device:
+                await websocket.send_json({
+                    "type": "telemetry_update",
+                    "deviceId": device_id,
+                    "speedKph": device.speedKph,
+                    "roadType": device.currentRoadType,
+                    "helmetWorn": device.helmetWorn,
+                    "bleConnected": device.bleConnected,
+                    "state": device.currentState.value,
+                    "timestamp": device.lastSeenAt.isoformat() if device.lastSeenAt else None,
+                })
+        except Exception:
+            pass
         while True:
             await websocket.receive_text()
     finally:
