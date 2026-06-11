@@ -39,12 +39,8 @@ BRAKE_PULL_ANGLE = 30      # 제동 시 목표 풀브레이크 각도 (30도)
 SAFE_DISTANCE_CM = 30.0 # 후방 장애물 경고 기준 거리 (cm)
 
 # ==========================================
-# 4. 위치 및 모션 센서 통신 설정 (GPS & IMU)
+# 4. 위치 및 모션 센서 통신 설정 (GPS)
 # ==========================================
 # SZH-NEO02 (GPS) 설정
 GPS_SERIAL_PORT = "/dev/ttyAMA0"
 GPS_BAUDRATE = 9600
-
-# ATN-G04 (IMU 가속도/자이로) 설정
-IMU_I2C_ADDRESS = 0x68
-IMU_SHOCK_THRESHOLD = 2.5  # 2.5G 이상의 충격을 받으면 사고로 간주
