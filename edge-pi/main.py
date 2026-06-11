@@ -25,10 +25,15 @@ from src.control.location import LocationMotionSensor
 # 4. 상태 판단 두뇌
 from src.state.state_machine import SafetyStateMachine
 
+# 5. TUI 대시보드
+from src.tui_display import SystemDashboard
+
 class SmartBikeSystem:
     def __init__(self):
-        print("🚲 [시스템] 스마트 자전거 안전 시스템 (BLE 구조체 고도화 모드) 초기화...")
-        
+        self.dashboard = SystemDashboard(device_id=PI_ID)
+        self.dashboard.start()
+        self.dashboard.log("스마트 자전거 안전 시스템 초기화 중...", "INFO")
+
         self.brake = BrakeController()
         self.radar = MmwaveRadarSensor()
         self.led = RearApproachLED()
@@ -41,8 +46,8 @@ class SmartBikeSystem:
 
         self.is_running = False
         self.last_telemetry_time = 0.0
-        self._last_emergency = False  # 응급 자동 녹화 중복 방지용
-        self._last_blink_seq = -1    # 급정거 깜빡임 seq 중복 방지
+        self._last_emergency = False
+        self._last_blink_seq = -1
         self._server_override_lock = threading.Lock()
         self._server_override = None  # {"brake_level": str, "expires_at": float}
 
@@ -177,22 +182,24 @@ class SmartBikeSystem:
         if action == "start_record":
             self.recorder.start(tag="manual")
             self.mqtt.send_ack(command_id, "ok", "recording started")
+            self.dashboard.log(f"녹화 시작 (commandId={command_id})", "INFO")
         elif action == "stop_record":
             self.recorder.stop()
             self.mqtt.send_ack(command_id, "ok", "recording stopped")
+            self.dashboard.log(f"녹화 중지 (commandId={command_id})", "INFO")
         elif action == "set_idle_mode":
             with self._server_override_lock:
                 self._server_override = {"brake_level": "level_emergency", "expires_at": expires_at}
-            print(f"🛑 [제어] 서버 긴급 정지 명령 수신 (commandId={command_id})")
+            self.dashboard.log(f"서버 긴급 정지 명령 (commandId={command_id})", "WARN")
             self.mqtt.send_ack(command_id, "ok", "idle mode activated")
         elif action == "set_limit_mode":
             brake_level = _BRAKE_NUM_MAP.get(params.get("brakeLevel", 1), "level_1")
             with self._server_override_lock:
                 self._server_override = {"brake_level": brake_level, "expires_at": expires_at}
-            print(f"⚠️ [제어] 서버 제한 모드 명령 수신: {brake_level} (commandId={command_id})")
+            self.dashboard.log(f"서버 제한 모드: {brake_level} (commandId={command_id})", "WARN")
             self.mqtt.send_ack(command_id, "ok", f"limit mode activated: {brake_level}")
         else:
-            print(f"⚠️ [제어] 알 수 없는 명령: {action}")
+            self.dashboard.log(f"알 수 없는 서버 명령: {action}", "ERROR")
             if command_id:
                 self.mqtt.send_ack(command_id, "error", f"unknown action: {action}")
 
@@ -215,7 +222,8 @@ class SmartBikeSystem:
         asyncio.create_task(self.ble.start_listening())
         asyncio.create_task(heartbeat.start(BACKEND_URL, PI_ID, PRE_SHARED_TOKEN))
 
-        print("✅ [시스템] 모든 모듈 무중단 가동 완료. 안전 루프 진입.")
+        self.dashboard.log("모든 모듈 가동 완료 — 안전 루프 진입", "INFO")
+        self.dashboard.update_mqtt(True)
 
         # 아두이노 C++ 이벤트 라벨 매핑 딕셔너리
         EVENT_NAME_MAP = {
@@ -230,6 +238,9 @@ class SmartBikeSystem:
             while self.is_running:
                 try:
                     sensor_data = await self._gather_sensor_data()
+                    self.dashboard.update_sensors(sensor_data)
+                    self.dashboard.update_ble(self.ble.is_connected,
+                                              getattr(self.ble, 'last_helmet_id', ''))
 
                     # [상태 판단 및 예외 처리]
                     if not self.ble.is_connected:
@@ -250,7 +261,6 @@ class SmartBikeSystem:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
                     # 서버 제어 명령 override (TTL 만료 시 자동 해제)
-                    # local_brake_level: 텔레메트리 전송 주기 결정에 사용 (서버 명령으로 인한 주기 증폭 방지)
                     local_brake_level = brake_level
                     with self._server_override_lock:
                         override = self._server_override
@@ -260,6 +270,10 @@ class SmartBikeSystem:
                     if override:
                         brake_level = override["brake_level"]
                         reason = "서버 원격 제어 명령"
+
+                    self.dashboard.update_state(
+                        self.state_machine.current_state, brake_level, reason
+                    )
 
                     # 후방 고속 접근 감지 시 전방 RGB LED 빨간색 경고
                     if sensor_data.get("rear_approach"):
@@ -275,8 +289,10 @@ class SmartBikeSystem:
                     if EMERGENCY_AUTO_RECORD:
                         if is_emergency and not self._last_emergency:
                             self.recorder.start(tag="emergency")
+                            self.dashboard.log("긴급 상황 — 자동 녹화 시작", "WARN")
                         elif not is_emergency and self._last_emergency and self.recorder.is_recording:
                             self.recorder.stop()
+                            self.dashboard.log("긴급 상황 해제 — 녹화 중지", "INFO")
                     self._last_emergency = is_emergency
 
                     # 비동기 격리 (브레이크 서보 모터)
@@ -298,20 +314,20 @@ class SmartBikeSystem:
                     self._send_mqtt_logs(local_brake_level, reason, sensor_data)
 
                 except Exception as e:
-                    print(f"⚠️ [시스템 에러] 루프 1회 스킵 (복구 중): {e}")
+                    self.dashboard.log(f"루프 에러 (스킵): {e}", "ERROR")
                     await asyncio.sleep(0.5)
                     continue
 
                 await asyncio.sleep(0.1)
 
         except asyncio.CancelledError:
-            print("🛑 [시스템] 루프 강제 취소됨.")
+            self.dashboard.log("루프 강제 취소됨", "WARN")
         finally:
             # [FIX BUG-D] async stop 호출 — ble.stop()이 async이므로 await 필요
             await self.stop()
 
     async def stop(self):
-        print("🧹 [시스템] 안전 종료 시퀀스 가동...")
+        self.dashboard.log("안전 종료 시퀀스 가동...", "INFO")
         self.is_running = False
 
         self.brake.release_brake()
@@ -323,14 +339,14 @@ class SmartBikeSystem:
         self.location.stop()
         self.vision.stop()
         self.mqtt.stop()
-        # [FIX BUG-D] BLE 연결 정상 종료 — 기존 동기 stop()에서 누락됨
         await self.ble.stop()
 
-        print("✅ [시스템] 완전히 종료되었습니다.")
+        self.dashboard.log("시스템 완전 종료", "INFO")
+        self.dashboard.stop()
 
 if __name__ == "__main__":
     system = SmartBikeSystem()
     try:
         asyncio.run(system.main_loop())
     except KeyboardInterrupt:
-        print("\n🛑 사용자 종료 명령(Ctrl+C) 감지. 장치를 정리합니다.")
+        pass
