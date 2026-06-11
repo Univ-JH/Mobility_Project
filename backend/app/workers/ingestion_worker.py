@@ -5,7 +5,7 @@ from pydantic import ValidationError
 from app.schemas.mqtt_payloads import TelemetryPayload, EventPayload
 from app.repositories.event_repo import save_event_idempotent
 from app.repositories.device_repo import update_device_status
-from app.domain.states import DeviceState
+from app.domain.states import DeviceState, is_transition_allowed
 
 SUPPORTED_SCHEMA_VERSIONS = {1}
 
@@ -33,6 +33,26 @@ async def handle_mqtt_message(topic: str, payload: Dict[str, Any]):
         print(f"Error handling message on {topic}: {e}")
         traceback.print_exc()
 
+def _infer_state(current: DeviceState, speed_kph: float) -> DeviceState:
+    """Derive next device state from telemetry data, respecting the transition matrix."""
+    if current in (DeviceState.AUTO_BRAKING, DeviceState.EMERGENCY, DeviceState.FAULT):
+        return current  # policy engine / admin controls these states
+
+    if current == DeviceState.IDLE:
+        # Device is alive and sending — move it to READY
+        target = DeviceState.READY
+    elif current == DeviceState.READY:
+        target = DeviceState.RUNNING_NORMAL if speed_kph > 0 else DeviceState.READY
+    elif current == DeviceState.RUNNING_NORMAL:
+        target = DeviceState.READY if speed_kph == 0 else DeviceState.RUNNING_NORMAL
+    elif current == DeviceState.RUNNING_LIMITED:
+        target = DeviceState.RUNNING_NORMAL if speed_kph > 0 else current
+    else:
+        target = current
+
+    return target if is_transition_allowed(current, target) else current
+
+
 async def process_telemetry(data: TelemetryPayload):
     helmet_worn = data.helmet.worn if data.helmet else False
     ble_connected = data.health.bleConnected if data.health else False
@@ -45,9 +65,10 @@ async def process_telemetry(data: TelemetryPayload):
         print(f"[Telemetry Dropped] Unknown device: {data.deviceId}")
         return
     else:
+        new_state = _infer_state(device.currentState, speed_kph)
         await update_device_status(
             device_id=data.deviceId,
-            state=device.currentState,
+            state=new_state,
             helmet_worn=helmet_worn,
             ble_connected=ble_connected,
             event_timestamp=data.timestamp,

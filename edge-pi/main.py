@@ -140,12 +140,12 @@ class SmartBikeSystem:
 
         # [REMAIN-1] MQTT 전송 간격 상한
         # 긴급 이벤트여도 최소 1초 간격 — is_accident 고착 시 0.1초 루프마다 10msg/sec 방지
-        # 평시 60초 주기는 유지
-        min_interval = 1.0 if is_emergency_event else 60.0
+        # 평시 5초 주기로 라이딩 화면 실시간 반영
+        min_interval = 1.0 if is_emergency_event else 5.0
         if current_time - self.last_telemetry_time < min_interval:
             return
 
-        if is_emergency_event or (current_time - self.last_telemetry_time >= 60.0):
+        if is_emergency_event or (current_time - self.last_telemetry_time >= 5.0):
             self.mqtt.send_bike_state(
                 speed=sensor_data["speed"],
                 road_type=sensor_data["surface_class"],
