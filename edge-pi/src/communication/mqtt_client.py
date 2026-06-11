@@ -68,7 +68,7 @@ class BikeMQTTClient:
         payload = {
             "deviceId": PI_ID,                       # Pi 기기 ID
             "helmetId": helmet_id,                   # [CONTRACT-2] 헬멧 BLE MAC 주소
-            "speed": round(speed, 2),
+            "speedKph": round(speed, 2),
             "environment": road_type,
             "latitude": lat,
             "longitude": lon,
