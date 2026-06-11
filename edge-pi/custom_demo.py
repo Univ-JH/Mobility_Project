@@ -9,8 +9,8 @@ from src.control.control_config import REAR_LED_PIN
 
 async def run_custom_demo():
     print("🎬 [맞춤형 데모] 스마트 자전거 안전 시스템 가동")
-    print("   - 🟡 헬멧 미착용: 전방 노랑 / 후방 꺼짐 (X)")
-    print("   - 🟢 헬멧 착용 (급가속 포함): 전방 초록 / 후방 꺼짐 (X)")
+    print("   - 🟡 헬멧 미착용: 전방 노랑 / 후방 꺼짐")
+    print("   - 🟢 헬멧 착용 (급가속 포함): 전방 초록 / 후방 꺼짐")
     print("   - 🔴 급감속: 전방 빨강 / 후방 빨강 반짝반짝 (3초간 락온)")
     print("   - 🔴 사고 및 전도: 전방 빨강 / 후방 빨강 켜짐 (3초간 락온)\n")
     
@@ -24,6 +24,11 @@ async def run_custom_demo():
     last_base_state = None
     locked_state = None
     event_lock_time = 0
+    
+    # ✨ 버그 해결용 무시(Cooldown) 플래그
+    # 아두이노가 계속 똑같은 위험 신호를 쏴도 한 번만 반응하고 무시하기 위한 장치
+    ignore_accident_until_clear = False
+    ignore_decel_until_clear = False
 
     try:
         while True:
@@ -34,6 +39,8 @@ async def run_custom_demo():
                     brake.release_brake()  
                     last_base_state = "DISCONNECTED"
                     locked_state = None
+                    ignore_accident_until_clear = False
+                    ignore_decel_until_clear = False
             else:
                 data = ble.last_parsed_data
                 is_worn = data.get("is_worn", False)
@@ -41,65 +48,77 @@ async def run_custom_demo():
                 event_label = data.get("event_label", 0)
                 
                 current_time = time.time()
-                
+
                 # ====================================================
-                # 1. 상태 갱신 루틴 (3초마다 잠금 해제 및 재파악)
+                # 💡 버그 1 완벽 해결: 급가속(2) 시 빨간불 방어
+                # 아두이노가 급가속인데 is_accident를 True로 쏘는 멍청한 짓을 하면,
+                # 파이썬에서 강제로 False로 덮어써서 무시해버립니다.
                 # ====================================================
+                if event_label == 2:
+                    is_accident = False 
+
+                # ====================================================
+                # 💡 버그 2 완벽 해결: 무한 빨간불 지옥 탈출 로직
+                # ====================================================
+                # 아두이노 센서가 0(정상)으로 돌아왔을 때만 '무시 모드'를 해제합니다.
+                if event_label == 0 and not is_accident:
+                    ignore_accident_until_clear = False
+                    ignore_decel_until_clear = False
+
+                # 3초 타이머가 끝났을 때의 처리
                 if locked_state is not None:
                     if current_time - event_lock_time >= 3.0:
-                        # 3초가 지났으므로 강제 잠금을 풉니다.
-                        # 직후 아래의 로직을 타고 현재 센서값에 맞춰 원래대로 돌아가거나 갱신됩니다.
+                        # 락을 풀면서 동시에 "아두이노가 0을 보낼 때까지 이 위험 신호는 무시해!"라고 명령
+                        if locked_state == "ACCIDENT":
+                            ignore_accident_until_clear = True
+                        elif locked_state == "SUDDEN_DECEL":
+                            ignore_decel_until_clear = True
+                            
                         locked_state = None
                         last_base_state = None 
 
                 # ====================================================
-                # 2. 위험 감지 시 3초 타이머 시작 (락온)
+                # 3. 위험 감지 시 3초 타이머 시작 (무시 모드가 아닐 때만 작동)
                 # ====================================================
                 if locked_state is None:
-                    if is_accident or event_label == 1:
-                        print("\n💥 [위험] 전도/사고 감지! ➔ 3초간 빨강/빨강 유지")
+                    if (is_accident or event_label == 1) and not ignore_accident_until_clear:
+                        print("\n💥 [위험] 전도/사고 감지! ➔ 3초간 빨강/빨강 고정")
                         locked_state = "ACCIDENT"
                         event_lock_time = current_time
                         
-                    elif event_label == 3:
-                        print("\n🚨 [경고] 급감속 감지! ➔ 3초간 빨강/반짝반짝 유지")
+                    elif event_label == 3 and not ignore_decel_until_clear:
+                        print("\n🚨 [경고] 급감속 감지! ➔ 3초간 빨강/반짝반짝 고정")
                         locked_state = "SUDDEN_DECEL"
                         event_lock_time = current_time
 
                 # ====================================================
-                # 3. 확정된 상태에 따른 LED & 모터 동작
+                # 4. 확정된 상태에 따른 LED & 모터 동작
                 # ====================================================
                 if locked_state == "ACCIDENT":
-                    # [전도] 전방 빨강, 후방 빨강 고정, 긴급 제동
                     led._set_rgb_color(100, 0, 0)
                     lgpio.gpio_write(led.h, REAR_LED_PIN, 1)
                     brake.pull_brake()
                     
                 elif locked_state == "SUDDEN_DECEL":
-                    # [급감속] 전방 빨강, 후방 빨강 반짝반짝, 브레이크 해제
                     led._set_rgb_color(100, 0, 0)
-                    
-                    # ✨ 0.2초 간격으로 1과 0을 오가는 반짝반짝 알고리즘
                     blink_on = int((current_time * 5) % 2)
                     lgpio.gpio_write(led.h, REAR_LED_PIN, blink_on)
-                    
                     brake.release_brake() 
                     
                 else:
-                    # 잠금 상태가 아닐 때 = 헬멧을 평범하게 썼다 벗었다 하는 상태
+                    # 잠금 상태가 아닐 때 (평상시 또는 3초가 지난 직후)
                     if not is_worn:
-                        # [미착용] 전방 노랑, 후방 X
                         if last_base_state != "UNWORN":
-                            print("\n⚠️ [안내] 헬멧 미착용 ➔ 원래대로 복귀 (전방 노랑)")
+                            print("\n⚠️ [안내] 헬멧 미착용 ➔ 전방 노랑 / 후방 꺼짐 (복귀)")
                             led._set_rgb_color(100, 60, 0)
                             lgpio.gpio_write(led.h, REAR_LED_PIN, 0)
                             brake.release_brake()
                             last_base_state = "UNWORN"
                             
                     else:
-                        # [착용] 전방 초록, 후방 X (급가속(event_label == 2)도 무시하고 이쪽으로 빠짐)
+                        # 급가속(event_label == 2) 시 무조건 여기로 들어와서 초록색을 유지합니다!
                         if last_base_state != "NORMAL":
-                            print("\n🟢 [정상] 헬멧 착용 확인 ➔ 원래대로 복귀 (전방 초록)")
+                            print("\n🟢 [정상] 헬멧 착용 (급가속 포함) ➔ 전방 초록 / 후방 꺼짐 (복귀)")
                             led._set_rgb_color(0, 100, 0)
                             lgpio.gpio_write(led.h, REAR_LED_PIN, 0)
                             brake.release_brake()
