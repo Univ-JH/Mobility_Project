@@ -33,6 +33,8 @@ class HelmetBLEManager:
         # [BUG-J] 연결 상태 변경 시 호출할 async 콜백 — main.py에서 등록
         # signature: async (connected: bool, helmet_id: str) -> None
         self.on_connection_change = None
+        # Arduino 디바운스 누락 보완 — label별 마지막 수신 시각 (label 1,2 Pi측 3초 락아웃)
+        self._label_last_time: dict = {}
 
     def _status_notification_handler(self, sender, data):
         """[콜백 1] 헬멧 착용 상태 실시간 변경 수신 (1바이트 데이터)"""
@@ -57,15 +59,31 @@ class HelmetBLEManager:
         try:
             # 아두이노의 C++ 구조체 레이아웃 규격(<BIIIB) 그대로 언팩 수행
             schema_ver, seq, timestamp, ride_id, event_label = struct.unpack(self.struct_format, padded_data)
-            
-            # 라벨 1(전도), 2(충돌), 3(급가속), 4(급정거) → 사고
-            # 5(이탈 의심), 0(정상) → 비사고
-            is_accident = event_label in [1, 2, 3, 4]
+
+            # [FIX-1] schemaVersion 계약 검증 — 미지원 버전은 격리 후 드롭
+            if schema_ver != 1:
+                print(f"⚠️ [BLE] unsupported_schema: version={schema_ver}. 드롭.")
+                return
+
+            # [FIX-2] label 1,2 Pi측 디바운스 — Arduino 디바운스 누락 보완
+            # label 2(충돌): Arduino에 락아웃 없어 100ms마다 폭탄 가능
+            # label 1(전도): Arduino가 1.5초마다 재전송, Pi에서 3초로 억제
+            DEBOUNCE_LABELS = {1, 2}
+            DEBOUNCE_SEC = 3.0
+            now = time.time()
+            if event_label in DEBOUNCE_LABELS:
+                last = self._label_last_time.get(event_label, 0.0)
+                if now - last < DEBOUNCE_SEC:
+                    return  # 중복 드롭 (로그 없음 — 정상 흐름)
+            self._label_last_time[event_label] = now
+
+            # [FIX-3] label 5(충돌 후 이탈)도 사고로 처리
+            # 라이더가 충돌 후 튕겨나간 상황 — label 1~5 전부 긴급
+            is_accident = event_label in {1, 2, 3, 4, 5}
 
             # [REMAIN-1] is_accident TTL 설정
             # 사고 이벤트 수신 시 10초 유효기간 부여 — Arduino는 정상 상태에서 이벤트를 보내지
             # 않으므로 TTL 없이는 is_accident가 영구 True로 고착되어 브레이크/MQTT 폭탄 발생
-            # 전도(label 1) 재전송 간격(8s) < TTL(10s) → 지속 전도 시 TTL 연장되어 계속 True 유지
             ACCIDENT_TTL_SEC = 10.0
             accident_expires_at = (time.time() + ACCIDENT_TTL_SEC) if is_accident else 0.0
 
@@ -73,14 +91,14 @@ class HelmetBLEManager:
             self.last_parsed_data["is_accident"]        = is_accident
             self.last_parsed_data["event_label"]        = event_label
             self.last_parsed_data["accident_expires_at"] = accident_expires_at
-            
+
             print("-" * 50)
             print(f"[BLE EVENT] 아두이노 이벤트를 수신했습니다. (라벨: {event_label})")
             print(f"  - 이벤트 번호 : #{seq}")
             print(f"  - 구동 시간   : {timestamp / 1000.0:.2f} 초")
             print(f"  - 라이딩 ID   : {ride_id}")
             print("-" * 50)
-            
+
         except Exception as e:
             print(f"⚠️ [BLE] 구조체 바이트 해독 에러: {e}")
 
@@ -153,6 +171,7 @@ class HelmetBLEManager:
                     "is_accident": False, "event_label": 0,
                     "accident_expires_at": 0.0,
                 }
+                self._label_last_time = {}
                 self.last_helmet_id = "unknown"
                 # [BUG-J] 연결 끊김 콜백 — MQTT status 발행
                 if self.on_connection_change:
