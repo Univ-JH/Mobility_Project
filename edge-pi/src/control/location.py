@@ -73,8 +73,8 @@ class LocationMotionSensor:
 
     def stop(self):
         self.is_running = False
-        if hasattr(self, 'gps_thread'): 
-            self.gps_thread.join()
+        if hasattr(self, 'gps_thread'):
+            self.gps_thread.join(timeout=2.0)
         
         if self.gps: 
             self.gps.close()
