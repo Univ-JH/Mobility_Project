@@ -47,6 +47,7 @@ export interface MyDevice {
   bleConnected: boolean;
   helmetWorn: boolean;
   lastSeenAt: string | null;
+  lastHeartbeatAt: string | null;
 }
 
 export interface AvailableDevice {

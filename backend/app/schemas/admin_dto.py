@@ -49,6 +49,7 @@ class DeviceListItemDto(BaseModel):
     deviceType: str
     currentState: str
     lastSeenAt: Optional[datetime]
+    lastHeartbeatAt: Optional[datetime]
     helmetWorn: bool
     bleConnected: bool
     lastLocation: Optional[LocationDto]

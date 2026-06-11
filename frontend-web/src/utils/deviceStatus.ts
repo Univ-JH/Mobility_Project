@@ -2,10 +2,13 @@ import L from 'leaflet';
 
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
 
-export function isDeviceOnline(lastSeenAt: string | null): boolean {
-  if (!lastSeenAt) return false;
-  const ts = new Date(lastSeenAt).getTime();
-  return !isNaN(ts) && Date.now() - ts < ONLINE_THRESHOLD_MS;
+export function isDeviceOnline(lastSeenAt: string | null, lastHeartbeatAt?: string | null): boolean {
+  const check = (ts: string | null) => {
+    if (!ts) return false;
+    const t = new Date(ts).getTime();
+    return !isNaN(t) && Date.now() - t < ONLINE_THRESHOLD_MS;
+  };
+  return check(lastSeenAt) || check(lastHeartbeatAt ?? null);
 }
 
 export function isDangerous(state: string): boolean {

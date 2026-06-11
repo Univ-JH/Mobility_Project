@@ -89,7 +89,7 @@ export const DeviceListTable: React.FC<Props> = ({ devices, onSelect, isLoading 
                   : '위치 없음'}
               </td>
               <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                {relativeTime(device.lastSeenAt)}
+                {relativeTime(device.lastSeenAt ?? device.lastHeartbeatAt)}
               </td>
             </tr>
           ))}

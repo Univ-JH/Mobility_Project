@@ -46,6 +46,7 @@ export interface DeviceListItem {
   deviceType: string;
   currentState: string;
   lastSeenAt: string | null;
+  lastHeartbeatAt: string | null;
   helmetWorn: boolean;
   bleConnected: boolean;
   lastLocation: DeviceLocation | null;

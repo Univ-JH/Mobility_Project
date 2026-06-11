@@ -157,6 +157,8 @@ class SmartBikeSystem:
                 confidence=confidence,
                 battery_level=-1,
                 helmet_id=self.ble.last_helmet_id,
+                ride_id=self.state_machine.ride_id,
+                ble_connected=self.ble.is_connected,
             )
             self.last_telemetry_time = current_time
 
