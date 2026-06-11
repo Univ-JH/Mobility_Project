@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { axiosInstance } from '../api/axiosInstance';
 
 export interface RidingData {
   speedKph: number;
@@ -28,6 +29,23 @@ export const useRidingWebSocket = (deviceId: string) => {
   const [events, setEvents] = useState<RidingEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // Fetch current device status immediately on mount so the screen doesn't
+  // sit at all-false defaults until the first MQTT telemetry arrives.
+  useEffect(() => {
+    if (!deviceId) return;
+    axiosInstance
+      .get<any, any>(`/devices/${deviceId}/status`)
+      .then((res: any) => {
+        const d = res?.data ?? res;
+        setData(prev => ({
+          ...prev,
+          helmetWorn: d.helmetWorn ?? prev.helmetWorn,
+          bleConnected: d.bleConnected ?? prev.bleConnected,
+        }));
+      })
+      .catch(() => {/* ignore — WebSocket will update when telemetry arrives */});
+  }, [deviceId]);
 
   useEffect(() => {
     if (!deviceId) return;
