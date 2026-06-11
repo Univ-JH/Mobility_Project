@@ -8,7 +8,7 @@ const int FSR_PIN = A0;        // 단일 압력 센서 꼽는 핀 (A0로 통합)
 
 const int PRES_THR = 300;      // 착용 판정 기준 (센서 값이 300보다 커야 함)
 const long CONFIRM_MS = 1000;  // 착용 확인 대기시간 (1초 동안 쓰고 있어야 "착용 완료")
-const long DETACH_MS = 3000;   // 벗음 확인 대기시간 (3초 동안 벗고 있어야 "벗음 완료") - [새로 추가]
+const long DETACH_MS = 3000;   // 벗음 확인 대기시간 (3초 동안 벗고 있어야 "벗음 완료")
 
 const float CRASH_THR = 4.0;   // 충돌 감지 기준 (4.0G 이상의 강한 물리적 충격)
 const float FALL_THR = 1.2;    // 전도(넘어짐) 감지 기준 (좌우 기울기 변화량)
@@ -146,7 +146,7 @@ void loop() {
     
     if (wearStart == 0) wearStart = millis(); // 머리가 닿은 순간 착용 타이머 가동
     
-    // 2초(CONFIRM_MS) 이상 계속 머리가 닿아있고, 아직 미착용 상태라면 최종 착용으로 인정
+    // 1초(CONFIRM_MS) 이상 계속 머리가 닿아있고, 아직 미착용 상태라면 최종 착용으로 인정
     if (millis() - wearStart > CONFIRM_MS && !isWearing) {
       isWearing = true; 
       statusCharacteristic.writeValue(1); // 라즈베리파이에 "헬멧 썼음(1)" 신호 전달
@@ -182,8 +182,7 @@ void loop() {
   float impact = sqrt(ax*ax + ay*ay + az*az); // 3축 가속도를 하나로 뭉친 종합 충격량 공식
   
   static unsigned long fallStartTime = 0;    // 전도(기울어짐) 지속시간 측정 타이머
-  static unsigned long lastAccEventTime = 0;   // 급가속 중복 방지용 타이머
-  static unsigned long lastDecEventTime = 0;   // 급정거 중복 방지용 타이머
+  static unsigned long lastSuddenEventTime = 0; // 급가속과 급정거 오작동 및 엉킴을 막기 위한 통합 제어 타이머
   
   // 헬멧이 좌우로 과하게 꺾이거나, 완전히 거꾸로 뒤집힌(az < -0.5) 상태 연산
   bool isCurrentlyTilted = (abs(ax) > FALL_THR || abs(ay) > FALL_THR || az < -0.5);
@@ -206,17 +205,17 @@ void loop() {
   } 
   // 고개를 숙인 게 아니고 수평을 유지하면서 앞방향으로 급가속 한 경우 (라벨 3)
   else if (ax > SUDDEN_THR && abs(az) > 0.7) {
-    if (millis() - lastAccEventTime > SUDDEN_LOCK_MS) { // 3초 중복 락이 풀렸을 때만 전송
+    if (millis() - lastSuddenEventTime > SUDDEN_LOCK_MS) { // 전송 규격 제한 시간이 만료되었을 때만 전송
       sendEncodedEvent(3, impact, ax, ay); 
-      lastAccEventTime = millis(); // 마지막 발생 시간 갱신
+      lastSuddenEventTime = millis(); // 마지막 기동 시간 박제하여 급정거 간섭 차단
     }
     fallStartTime = 0; 
   }
   // 고개를 숙인 게 아니고 수평을 유지하면서 뒷방향으로 급브레이크 밟은 경우 (라벨 4)
   else if (ax < -SUDDEN_THR && abs(az) > 0.7) {
-    if (millis() - lastDecEventTime > SUDDEN_LOCK_MS) { // 3초 중복 락이 풀렸을 때만 전송
+    if (millis() - lastSuddenEventTime > SUDDEN_LOCK_MS) { // 전송 규격 제한 시간이 만료되었을 때만 전송
       sendEncodedEvent(4, impact, ax, ay); 
-      lastDecEventTime = millis(); // 마지막 발생 시간 갱신
+      lastSuddenEventTime = millis(); // 마지막 기동 시간 박제하여 급가속 간섭 차단
     }
     fallStartTime = 0; 
   }
