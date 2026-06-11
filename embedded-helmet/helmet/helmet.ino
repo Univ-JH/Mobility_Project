@@ -50,8 +50,8 @@ void sendEncodedEvent(uint8_t label, float impactG, float ax, float ay) {
   payload.rideId = currentRideId; 
   payload.eventLabel = label;
 
-  // 세 번째 인자를 true로 설정: 라즈베리파이가 "잘 받았다"고 응답할 때까지 기다리는 안전 모드
-  eventCharacteristic.writeValue((uint8_t*)&payload, sizeof(SafetyEventPayload), true);
+  // 세 번째 인자를 false로 설정하여 수신 측 응답 대기로 인한 타임아웃 끊김 문제를 원천 차단합니다.
+  eventCharacteristic.writeValue((uint8_t*)&payload, sizeof(SafetyEventPayload), false);
   
   // 컴퓨터 화면(시리얼 모니터)에 테스트용 로그 출력
   Serial.print("Event Sent [Seq: "); Serial.print(payload.seq); 
@@ -81,7 +81,6 @@ bool oldCentralConnected = false; // 직전 블루투스 연결 상태 기억용
 
 void setup() {
   Serial.begin(9600);
-//   while (!Serial); // 배터리 구동을 위해 무한 대기 코드는 주석 처리 제거 상태 유지
 
   // 센서 장치들이 제대로 켜졌는지 확인 (안 켜지면 여기서 프로그램이 멈춤)
   if (!IMU.begin()) {
@@ -146,7 +145,7 @@ void loop() {
     
     if (wearStart == 0) wearStart = millis(); // 머리가 닿은 순간 착용 타이머 가동
     
-    // 1초(CONFIRM_MS) 이상 계속 머리가 닿아있고, 아직 미착용 상태라면 최종 착용으로 인정
+    // 2초(CONFIRM_MS) 이상 계속 머리가 닿아있고, 아직 미착용 상태라면 최종 착용으로 인정
     if (millis() - wearStart > CONFIRM_MS && !isWearing) {
       isWearing = true; 
       statusCharacteristic.writeValue(1); // 라즈베리파이에 "헬멧 썼음(1)" 신호 전달
