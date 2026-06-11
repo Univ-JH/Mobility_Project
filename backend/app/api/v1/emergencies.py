@@ -17,17 +17,16 @@ async def get_active_emergencies() -> Any:
     """Get all active emergencies (OPEN or ACKED)."""
     cases = await EmergencyCase.find({"status": {"$in": ["OPEN", "ACKED"]}}).sort(-EmergencyCase.openedAt).to_list()
     return create_success_response(
-        data={
-            "emergencies": [
-                {
-                    "id": case.caseId,
-                    "status": case.status.lower(),
-                    "createdAt": case.openedAt.isoformat(),
-                    "reason": f"Emergency detected on device {case.deviceId}",
-                }
-                for case in cases
-            ]
-        },
+        data=[
+            {
+                "caseId": case.caseId,
+                "deviceId": case.deviceId,
+                "status": case.status,
+                "openedAt": case.openedAt.isoformat(),
+                "reason": f"Emergency detected on device {case.deviceId}",
+            }
+            for case in cases
+        ],
         message="활성 응급 케이스 조회 성공",
     )
 
