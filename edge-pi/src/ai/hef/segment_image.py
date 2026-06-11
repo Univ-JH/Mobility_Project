@@ -200,7 +200,16 @@ def _postprocess(
         raw  = coef @ proto_flat.T                         # (proto_h*proto_w,)
         mask = _sigmoid(raw.reshape(proto_h, proto_w))
         mask_up = cv2.resize(mask, (input_w, input_h), interpolation=cv2.INTER_LINEAR)
-        accum[cls] = np.maximum(accum[cls], mask_up)
+
+        # BBox 클리핑: proto mask가 전체 이미지로 번지는 현상 방지
+        bx1 = int(np.clip(bboxes[i][0], 0, input_w))
+        by1 = int(np.clip(bboxes[i][1], 0, input_h))
+        bx2 = int(np.clip(bboxes[i][2], 0, input_w))
+        by2 = int(np.clip(bboxes[i][3], 0, input_h))
+        clipped = np.zeros((input_h, input_w), dtype=np.float32)
+        clipped[by1:by2, bx1:bx2] = mask_up[by1:by2, bx1:bx2]
+
+        accum[cls] = np.maximum(accum[cls], clipped)
 
     valid = accum.max(axis=0) > conf_thr
     class_map[valid] = accum[:, valid].argmax(axis=0).astype(np.int32)
@@ -315,6 +324,7 @@ def infer_image(
     roi_y: Tuple[float, float],
     out_dir: Path,
     show: bool,
+    swap_classes: bool = False,
 ) -> Dict:
     frame = cv2.imread(str(image_path))
     if frame is None:
@@ -331,6 +341,26 @@ def infer_image(
 
     class_map, conf_map = _postprocess(
         res, proto_name, layers, input_h, input_w, conf_thr, nms_thr, num_classes=2,
+    )
+
+    # 클래스 ID 스왑 (--swap-classes 시 0↔1 반전)
+    if swap_classes:
+        swapped = class_map.copy()
+        swapped[class_map == ROAD]     = SIDEWALK
+        swapped[class_map == SIDEWALK] = ROAD
+        class_map = swapped
+
+    # 진단: 전체 픽셀 클래스 분포 출력
+    road_total = int((class_map == ROAD).sum())
+    sw_total   = int((class_map == SIDEWALK).sum())
+    unk_total  = int((class_map == UNKNOWN).sum())
+    total_px   = input_h * input_w
+    _log.info(
+        "[%s] 픽셀분포 road=%d(%.1f%%)  sidewalk=%d(%.1f%%)  unknown=%d(%.1f%%)",
+        image_path.name,
+        road_total, road_total / total_px * 100,
+        sw_total,   sw_total   / total_px * 100,
+        unk_total,  unk_total  / total_px * 100,
     )
 
     result_cls, result_conf = _classify_roi(class_map, conf_map, roi_x, roi_y, conf_thr)
@@ -395,6 +425,8 @@ def main() -> None:
                         help="세그멘테이션 오버레이 투명도 (기본값: 0.45)")
     parser.add_argument("--show", action="store_true",
                         help="각 이미지 처리 후 결과 창 표시")
+    parser.add_argument("--swap-classes", action="store_true",
+                        help="class 0↔1 반전 (모델 레이블이 반대일 때 사용)")
     args = parser.parse_args()
 
     if not args.hef.exists():
@@ -459,6 +491,7 @@ def main() -> None:
                         proto_name, layers,
                         img_path, args.conf, args.nms,
                         roi_x, roi_y, out_dir, args.show,
+                        swap_classes=args.swap_classes,
                     )
                     results.append(r)
 
