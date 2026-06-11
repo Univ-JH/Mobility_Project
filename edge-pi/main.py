@@ -222,27 +222,11 @@ class SmartBikeSystem:
                             elif sensor_data["bike_shock"]:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
-                    # # 후방 고속 접근 감지 시 전방 RGB LED 빨간색 경고
-                    # if sensor_data.get("rear_approach"):
-                    #     self.led.warn_rear()
-                    # else:
-                    #     self.led.clear()
-
-                    # [수정된 LED 상태 표출 로직]
-                    current_event = sensor_data.get("event_label", 0)
-                    
-                    # 1순위: 전도(1) 및 충돌(2) 또는 시스템 사고 감지
-                    if sensor_data.get("is_accident") or current_event in [1, 2]:
-                        self.led.update_status("accident")
-                    # 2순위: 급정거(4)
-                    elif current_event == 4:
-                        self.led.update_status("sudden_decel")
-                    # 3순위: 헬멧 미착용
-                    elif not sensor_data.get("is_worn", False):
-                        self.led.update_status("unworn")
-                    # 4순위: 정상, 급가속(3), 충돌후이탈(5) 등
+                    # 후방 고속 접근 감지 시 전방 RGB LED 빨간색 경고
+                    if sensor_data.get("rear_approach"):
+                        self.led.warn_rear()
                     else:
-                        self.led.update_status("normal")
+                        self.led.clear()
 
                     # 수동 녹화 플래그 파일 체크 (touch /tmp/record_start|stop)
                     self.recorder.check_flag_triggers()
