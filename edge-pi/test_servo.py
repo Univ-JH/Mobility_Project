@@ -3,11 +3,15 @@ import lgpio
 
 SERVO_PIN = 18
 
+# 라즈베리 파이 5의 하드웨어 PWM 전용 컨트롤러(칩 2번)를 강제로 고정하여 엽니다.
 try:
-    h = lgpio.gpiochip_open(2) # 파이 5 전용 칩
-except:
-    try: h = lgpio.gpiochip_open(4)
-    except: h = lgpio.gpiochip_open(0)
+    h = lgpio.gpiochip_open(2)
+    print("🤖 [시스템] 라즈베리 파이 5 전용 GPIO 칩(2번) 오픈 성공")
+except Exception:
+    try:
+        h = lgpio.gpiochip_open(4)
+    except Exception:
+        h = lgpio.gpiochip_open(0)
 
 try:
     lgpio.gpio_free(h, SERVO_PIN)
