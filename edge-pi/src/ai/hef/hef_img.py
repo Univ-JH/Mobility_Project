@@ -8,8 +8,8 @@ from hailo_platform import (HEF, VDevice, HailoStreamInterface, ConfigureParams,
 # 1. 환경 및 수학 함수 설정 (최적화 버전)
 # ==========================================
 HEF_PATH = "best.hef"
-IMAGE_PATH = "img/screenshot1.png"
-OUTPUT_PATH = "img/screenshot1_output.png"
+IMAGE_PATH = "img/img (41).png"
+OUTPUT_PATH = "img/img (41).png"
 
 # 클래스별 색상 (BGR 기준) - 0: 차도(빨강), 1: 인도(초록)
 COLORS = {0: (0, 0, 255), 1: (0, 255, 0)} 
