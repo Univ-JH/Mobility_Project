@@ -250,6 +250,8 @@ class SmartBikeSystem:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
 
                     # 서버 제어 명령 override (TTL 만료 시 자동 해제)
+                    # local_brake_level: 텔레메트리 전송 주기 결정에 사용 (서버 명령으로 인한 주기 증폭 방지)
+                    local_brake_level = brake_level
                     with self._server_override_lock:
                         override = self._server_override
                         if override and time.time() > override["expires_at"]:
@@ -292,8 +294,8 @@ class SmartBikeSystem:
                             self._last_blink_seq = seq
                             asyncio.create_task(asyncio.to_thread(self.led.brake_blink))
                     
-                    # 서버(MQTT) 전송
-                    self._send_mqtt_logs(brake_level, reason, sensor_data)
+                    # 서버(MQTT) 전송 — 주기는 로컬 판단(local_brake_level) 기준
+                    self._send_mqtt_logs(local_brake_level, reason, sensor_data)
 
                 except Exception as e:
                     print(f"⚠️ [시스템 에러] 루프 1회 스킵 (복구 중): {e}")

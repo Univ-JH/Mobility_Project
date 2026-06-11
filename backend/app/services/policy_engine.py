@@ -1,6 +1,20 @@
+import time
 from app.schemas.mqtt_payloads import TelemetryPayload, EventPayload
 from app.services.mqtt_service import publish_control_command
 from app.repositories.models import Policy
+
+# {(deviceId, action): last_sent_timestamp} — 동일 명령 중복 전송 방지
+_command_cooldown: dict[tuple, float] = {}
+_COOLDOWN_SEC = 30.0
+
+async def _publish_if_not_cooling(device_id: str, action: str, params: dict, reason: str) -> bool:
+    key = (device_id, action)
+    now = time.monotonic()
+    if now - _command_cooldown.get(key, 0.0) < _COOLDOWN_SEC:
+        return False
+    _command_cooldown[key] = now
+    await publish_control_command(device_id=device_id, action=action, params=params, reason=reason)
+    return True
 
 async def get_active_policy():
     policy = await Policy.find_one(Policy.isActive == True)
@@ -23,18 +37,17 @@ async def evaluate_telemetry_policy(data: TelemetryPayload):
     
     # Rule B: Helmet is off while riding (or any time for now)
     if policy.helmetRequired and data.helmet and not data.helmet.worn:
-        # Prevent riding
-        await publish_control_command(
+        await _publish_if_not_cooling(
             device_id=data.deviceId,
             action="set_idle_mode",
-            params={"brakeLevel": 3}, # Max brake or lock
+            params={"brakeLevel": 3},
             reason="Safety Policy: Helmet required but removed"
         )
         return
 
     # Additional telemetry-based rules can be added here
     if data.health and data.health.batteryPct < 5:
-        await publish_control_command(
+        await _publish_if_not_cooling(
             device_id=data.deviceId,
             action="set_limit_mode",
             params={"targetSpeedKph": 5, "brakeLevel": 1},
@@ -50,7 +63,7 @@ async def evaluate_event_policy(data: EventPayload):
     # Rule A: Sidewalk detected with high confidence
     if data.eventType in ["sidewalk_detected", "auto_brake_triggered"]:
         if data.confidence >= 0.8:
-            await publish_control_command(
+            await _publish_if_not_cooling(
                 device_id=data.deviceId,
                 action="set_limit_mode",
                 params={"brakeLevel": policy.sidewalkBrakeLevel, "targetSpeedKph": 8},
@@ -60,7 +73,7 @@ async def evaluate_event_policy(data: EventPayload):
 
     # Emergency Fall Detection
     if data.eventType == "fall_suspected" and data.severity == "high":
-        # Immediate stop
+        # Immediate stop — 낙상은 쿨다운 없이 항상 전송
         await publish_control_command(
             device_id=data.deviceId,
             action="set_idle_mode",
