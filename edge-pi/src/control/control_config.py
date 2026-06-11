@@ -42,7 +42,7 @@ SAFE_DISTANCE_CM = 30.0 # 후방 장애물 경고 기준 거리 (cm)
 # 4. 위치 및 모션 센서 통신 설정 (GPS & IMU)
 # ==========================================
 # SZH-NEO02 (GPS) 설정
-GPS_SERIAL_PORT = "/dev/serial0"
+GPS_SERIAL_PORT = "/dev/ttyAMA0"
 GPS_BAUDRATE = 9600
 
 # ATN-G04 (IMU 가속도/자이로) 설정

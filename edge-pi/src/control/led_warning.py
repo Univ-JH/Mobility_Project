@@ -59,6 +59,38 @@ class RearApproachLED:
                 self._set_rgb_color(0, 100, 0)
                 lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
 
+    @property
+    def _active(self):
+        return self._current_level is not None
+
+    def warn_rear(self):
+        """테스트용: 경고 점등 (앞 빨강 + 후방 레드바 ON). 중복 호출 무시."""
+        if self._active:
+            return
+        self.update_status("level_2")
+
+    def test_colors(self):
+        """테스트용: 전방 RGB 색상 순차 확인."""
+        import time
+        with self.lock:
+            print("  → 전방: 초록색 켜짐")
+            self._set_rgb_color(0, 100, 0)
+            time.sleep(1.5)
+            print("  → 전방: 노란색 켜짐")
+            self._set_rgb_color(100, 70, 0)
+            time.sleep(1.5)
+            self._set_rgb_color(0, 0, 0)
+
+    def test_rear_only(self):
+        """테스트용: 후방 8구 레드바 단독 점등 확인."""
+        import time
+        with self.lock:
+            print(f"  → 후방 레드바 ON (핀: {REAR_LED_PIN})")
+            lgpio.gpio_write(self.h, REAR_LED_PIN, 1)
+            time.sleep(2.0)
+            print("  → 후방 레드바 OFF")
+            lgpio.gpio_write(self.h, REAR_LED_PIN, 0)
+
     def clear(self):
         """모든 LED 소등"""
         self._current_level = None
