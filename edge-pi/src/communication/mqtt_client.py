@@ -5,7 +5,7 @@ from datetime import datetime
 # 분리된 설정값을 불러옵니다.
 from src.communication.comm_config import (
     MQTT_BROKER, MQTT_PORT, MQTT_CLIENT_ID, PI_ID,
-    MQTT_TOPIC_TELEMETRY, MQTT_TOPIC_STATUS, MQTT_TOPIC_CONTROL,
+    MQTT_TOPIC_TELEMETRY, MQTT_TOPIC_STATUS, MQTT_TOPIC_CONTROL, MQTT_TOPIC_ACK,
 )
 
 class BikeMQTTClient:
@@ -107,6 +107,15 @@ class BikeMQTTClient:
         self.client.publish(MQTT_TOPIC_STATUS, json.dumps(payload), qos=1)
         state = "연결" if connected else "끊김"
         print(f"[MQTT] 헬멧 상태 발행: {state} (helmet_id={helmet_id})")
+
+    def send_ack(self, command_id: str, result: str, reason: str):
+        payload = {
+            "commandId": command_id,
+            "result": result,
+            "reason": reason,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
+        self.client.publish(MQTT_TOPIC_ACK, json.dumps(payload), qos=1)
 
     def stop(self):
         self.client.loop_stop()

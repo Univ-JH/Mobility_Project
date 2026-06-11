@@ -1,5 +1,6 @@
 import time
 import asyncio
+import threading
 from typing import Dict, Any
 
 # 1. 하드웨어 제어 모듈
@@ -42,6 +43,8 @@ class SmartBikeSystem:
         self.last_telemetry_time = 0.0
         self._last_emergency = False  # 응급 자동 녹화 중복 방지용
         self._last_blink_seq = -1    # 급정거 깜빡임 seq 중복 방지
+        self._server_override_lock = threading.Lock()
+        self._server_override = None  # {"brake_level": str, "expires_at": float}
 
     async def _gather_sensor_data(self) -> Dict[str, Any]:
         """모든 센서 모듈에서 최신 데이터를 긁어모아 딕셔너리로 만듭니다."""
@@ -164,12 +167,34 @@ class SmartBikeSystem:
 
     def _on_control_command(self, action: str, payload: dict):
         """MQTT device/{id}/control 수신 핸들러 (MQTT 백그라운드 스레드에서 호출됨)."""
+        command_id = payload.get("commandId", "")
+        ttl_ms = payload.get("ttlMs", 5000)
+        expires_at = time.time() + ttl_ms / 1000.0
+        params = payload.get("params", {})
+
+        _BRAKE_NUM_MAP = {0: "level_0", 1: "level_1", 2: "level_2", 3: "level_emergency"}
+
         if action == "start_record":
             self.recorder.start(tag="manual")
+            self.mqtt.send_ack(command_id, "ok", "recording started")
         elif action == "stop_record":
             self.recorder.stop()
+            self.mqtt.send_ack(command_id, "ok", "recording stopped")
+        elif action == "set_idle_mode":
+            with self._server_override_lock:
+                self._server_override = {"brake_level": "level_emergency", "expires_at": expires_at}
+            print(f"🛑 [제어] 서버 긴급 정지 명령 수신 (commandId={command_id})")
+            self.mqtt.send_ack(command_id, "ok", "idle mode activated")
+        elif action == "set_limit_mode":
+            brake_level = _BRAKE_NUM_MAP.get(params.get("brakeLevel", 1), "level_1")
+            with self._server_override_lock:
+                self._server_override = {"brake_level": brake_level, "expires_at": expires_at}
+            print(f"⚠️ [제어] 서버 제한 모드 명령 수신: {brake_level} (commandId={command_id})")
+            self.mqtt.send_ack(command_id, "ok", f"limit mode activated: {brake_level}")
         else:
             print(f"⚠️ [제어] 알 수 없는 명령: {action}")
+            if command_id:
+                self.mqtt.send_ack(command_id, "error", f"unknown action: {action}")
 
     async def _on_helmet_connection_change(self, connected: bool, helmet_id: str):
         """[BUG-J] BLE 연결 상태 변경 → MQTT device/{id}/status 발행"""
@@ -214,7 +239,7 @@ class SmartBikeSystem:
                             brake_level, reason = "level_0", "헬멧 통신 끊김: 수동 주행 모드"
                     else:
                         brake_level, reason, _ = self.state_machine.evaluate(sensor_data)
-                        
+
                         # 아두이노 이벤트 디테일 덮어쓰기 로직
                         # 사고가 발생했을 때, 그 원인이 헬멧이라면 정확한 원인을 AWS로 보냄
                         if sensor_data["is_accident"]:
@@ -223,6 +248,16 @@ class SmartBikeSystem:
                                 reason = f"긴급 제동 (헬멧 감지: {EVENT_NAME_MAP[label]})"
                             elif sensor_data["bike_shock"]:
                                 reason = "긴급 제동 (자전거 본체 센서 직접 감지)"
+
+                    # 서버 제어 명령 override (TTL 만료 시 자동 해제)
+                    with self._server_override_lock:
+                        override = self._server_override
+                        if override and time.time() > override["expires_at"]:
+                            self._server_override = None
+                            override = None
+                    if override:
+                        brake_level = override["brake_level"]
+                        reason = "서버 원격 제어 명령"
 
                     # 후방 고속 접근 감지 시 전방 RGB LED 빨간색 경고
                     if sensor_data.get("rear_approach"):

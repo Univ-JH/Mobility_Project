@@ -11,8 +11,8 @@ HEF_PATH = "best.hef"
 IMAGE_PATH = "img/screenshot1.png"
 OUTPUT_PATH = "img/screenshot1_output.png"
 
-# 클래스별 색상 (BGR 기준) - 0: 인도(초록), 1: 차도(빨강)
-COLORS = {0: (0, 255, 0), 1: (0, 0, 255)} 
+# 클래스별 색상 (BGR 기준) - 0: 차도(빨강), 1: 인도(초록)
+COLORS = {0: (0, 0, 255), 1: (0, 255, 0)} 
 
 # 🛠️ [튜닝 핵심 포인트]
 CONFIDENCE_THRESHOLD = 0.55  # 인식 확률 임계값 (결과가 너무 적으면 0.25로 낮추세요)
