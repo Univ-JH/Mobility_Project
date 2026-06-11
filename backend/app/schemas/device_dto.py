@@ -14,6 +14,8 @@ class DeviceStatusResponse(BaseModel):
     lastSeenAt: Optional[datetime] = None
     helmetWorn: bool = False
     bleConnected: bool = False
+    speedKph: float = 0.0
+    roadType: str = "unknown"
     currentPolicyVersion: int = 1
 
 class DevicePairRequest(BaseModel):

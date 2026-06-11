@@ -13,6 +13,17 @@ from app.workers.mqtt_client import start_mqtt_worker
 
 from app.core.database import init_db
 
+async def _heartbeat_gc_loop() -> None:
+    """Background task: reset stale devices to IDLE every 60 seconds."""
+    from app.repositories.device_repo import reset_stale_devices
+    while True:
+        await asyncio.sleep(60)
+        try:
+            await reset_stale_devices()
+        except Exception as e:
+            print(f"[Heartbeat GC] Error: {e}")
+
+
 async def _seed_admin() -> None:
     from app.repositories.models import User
     from app.core.security import hash_password
@@ -41,10 +52,14 @@ async def lifespan(app: FastAPI):
     # 3. MQTT Worker Startup
     mqtt_task = asyncio.create_task(start_mqtt_worker())
 
+    # 4. Heartbeat GC — reset stale devices to IDLE
+    gc_task = asyncio.create_task(_heartbeat_gc_loop())
+
     yield
 
-    # 4. Graceful Shutdown
+    # 5. Graceful Shutdown
     mqtt_task.cancel()
+    gc_task.cancel()
     client.close()
 
 from fastapi.middleware.cors import CORSMiddleware

@@ -11,6 +11,14 @@ import type { MyDevice } from '../../src/api/userApi';
 import { SafeButton } from '../../src/components/SafeButton';
 import { useEmergency } from '../../src/context/EmergencyContext';
 
+const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
+function isOnline(lastHeartbeatAt: string | null): boolean {
+  if (!lastHeartbeatAt) return false;
+  const t = new Date(lastHeartbeatAt).getTime();
+  return !isNaN(t) && Date.now() - t < ONLINE_THRESHOLD_MS;
+}
+
 const STATE_COLORS: Record<string, string> = {
   RUNNING_NORMAL: '#10b981',
   RUNNING_LIMITED: '#f59e0b',
@@ -37,13 +45,22 @@ export default function HomeScreen() {
 
   const renderDevice = ({ item }: { item: MyDevice }) => {
     const stateColor = STATE_COLORS[item.currentState] ?? '#64748b';
+    const online = isOnline(item.lastHeartbeatAt);
     return (
-      <View style={styles.deviceCard}>
+      <View style={[styles.deviceCard, !online && styles.deviceCardOffline]}>
         <View style={styles.deviceInfo}>
-          <Cpu size={20} color={stateColor} />
+          <Cpu size={20} color={online ? stateColor : '#475569'} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.deviceId}>{item.deviceId}</Text>
-            <Text style={[styles.deviceState, { color: stateColor }]}>
+            <View style={styles.deviceTitleRow}>
+              <Text style={styles.deviceId}>{item.deviceId}</Text>
+              <View style={[styles.onlineBadge, { backgroundColor: online ? 'rgba(16,185,129,0.15)' : 'rgba(100,116,139,0.15)' }]}>
+                <View style={[styles.onlineDot, { backgroundColor: online ? '#10b981' : '#475569' }]} />
+                <Text style={[styles.onlineBadgeText, { color: online ? '#10b981' : '#475569' }]}>
+                  {online ? '온라인' : '오프라인'}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.deviceState, { color: online ? stateColor : '#475569' }]}>
               {STATE_LABELS[item.currentState] ?? item.currentState}
             </Text>
             <View style={styles.helmetRow}>
@@ -58,11 +75,12 @@ export default function HomeScreen() {
           </View>
         </View>
         <TouchableOpacity
-          style={styles.startBtn}
-          onPress={() => router.push(`/riding/${item.deviceId}`)}
+          style={[styles.startBtn, !online && styles.startBtnDisabled]}
+          onPress={() => online && router.push(`/riding/${item.deviceId}`)}
+          disabled={!online}
         >
           <Play size={16} color="#fff" />
-          <Text style={styles.startBtnText}>주행 시작</Text>
+          <Text style={styles.startBtnText}>{online ? '주행 시작' : '오프라인'}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -125,8 +143,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b', borderRadius: 16, padding: 16,
     borderWidth: 1, borderColor: '#334155', gap: 12,
   },
+  deviceCardOffline: { opacity: 0.6 },
   deviceInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  deviceId: { fontSize: 16, fontWeight: '700', color: '#f8fafc', marginBottom: 2 },
+  deviceTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  deviceId: { fontSize: 16, fontWeight: '700', color: '#f8fafc' },
+  onlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  onlineDot: { width: 6, height: 6, borderRadius: 3 },
+  onlineBadgeText: { fontSize: 10, fontWeight: '700' },
   deviceState: { fontSize: 13, fontWeight: '600', marginBottom: 4 },
   helmetRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   helmetText: { fontSize: 12, fontWeight: '500' },
@@ -134,6 +157,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#3b82f6', borderRadius: 10, padding: 12,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
+  startBtnDisabled: { backgroundColor: '#334155' },
   startBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyText: { color: '#94a3b8', fontSize: 16, fontWeight: '600' },

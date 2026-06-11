@@ -99,3 +99,21 @@ async def get_available_devices(user_id: str) -> list[Device]:
         Device.lastHeartbeatAt >= threshold,
         Device.ownerUserId == "",
     ).to_list()
+
+
+async def reset_stale_devices() -> int:
+    """Set IDLE for devices whose heartbeat has been absent for >90s.
+    Returns the number of devices reset."""
+    threshold = datetime.now(timezone.utc) - timedelta(seconds=90)
+    stale = await Device.find(
+        Device.lastHeartbeatAt < threshold,
+        Device.currentState != DeviceState.IDLE,
+    ).to_list()
+    for device in stale:
+        device.currentState = DeviceState.IDLE
+        device.speedKph = 0.0
+        device.updatedAt = datetime.now(timezone.utc)
+        await device.save()
+    if stale:
+        print(f"[Heartbeat GC] Reset {len(stale)} stale device(s) to IDLE")
+    return len(stale)

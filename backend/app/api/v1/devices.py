@@ -119,6 +119,8 @@ async def read_device_status(device_id: str, _: str = Depends(get_current_user))
             lastSeenAt=device.lastSeenAt,
             helmetWorn=device.helmetWorn,
             bleConnected=device.bleConnected,
+            speedKph=device.speedKph,
+            roadType=device.currentRoadType,
             currentPolicyVersion=device.currentPolicyVersion
         ).model_dump()
     )

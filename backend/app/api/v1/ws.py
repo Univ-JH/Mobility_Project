@@ -1,19 +1,14 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import asyncio
+from fastapi import APIRouter, WebSocket
 from app.services.ws_manager import ws_manager
 
 router = APIRouter()
 
 
-@router.websocket("/device/{device_id}")
-async def device_telemetry_ws(device_id: str, websocket: WebSocket) -> None:
-    """
-    Mobile clients connect here to receive live telemetry for a device.
-    Server pushes messages; client sends pings to keep the connection alive.
-    """
-    await ws_manager.connect(device_id, websocket)
+async def _send_snapshot(device_id: str, websocket: WebSocket) -> None:
+    """Push current DB state to the client immediately after connect.
+    Runs as a background task so any failure never closes the WebSocket."""
     try:
-        # Send current device state immediately on connect so the client
-        # doesn't show stale defaults until the next MQTT telemetry arrives.
         from app.repositories.device_repo import get_device
         device = await get_device(device_id)
         if device:
@@ -27,6 +22,19 @@ async def device_telemetry_ws(device_id: str, websocket: WebSocket) -> None:
                 "state": device.currentState.value,
                 "timestamp": device.lastSeenAt.isoformat() if device.lastSeenAt else None,
             })
+    except Exception:
+        pass
+
+
+@router.websocket("/device/{device_id}")
+async def device_telemetry_ws(device_id: str, websocket: WebSocket) -> None:
+    """
+    Mobile clients connect here to receive live telemetry for a device.
+    Server pushes messages; client sends pings to keep the connection alive.
+    """
+    await ws_manager.connect(device_id, websocket)
+    try:
+        asyncio.create_task(_send_snapshot(device_id, websocket))
         while True:
             await websocket.receive_text()
     finally:
