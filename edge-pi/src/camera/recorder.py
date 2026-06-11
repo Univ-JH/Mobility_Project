@@ -53,7 +53,8 @@ class VideoRecorder:
                 print(f"🔴 [녹화] 시작: {path}")
                 return True
             except Exception as e:
-                print(f"⚠️ [녹화] 시작 실패: {e}")
+                hint = " (road_vision.py가 카메라를 점유 중일 수 있음)" if "in use" in str(e).lower() or "busy" in str(e).lower() else ""
+                print(f"⚠️ [녹화] 시작 실패: {e}{hint}")
                 if self._camera:
                     try:
                         self._camera.close()
@@ -86,7 +87,7 @@ class VideoRecorder:
         if os.path.exists("/tmp/record_start"):
             os.remove("/tmp/record_start")
             self.start(tag="manual")
-        if os.path.exists("/tmp/record_stop"):
+        elif os.path.exists("/tmp/record_stop"):
             os.remove("/tmp/record_stop")
             self.stop()
 
